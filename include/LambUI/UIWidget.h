@@ -3,6 +3,7 @@
 #include "lambui_export.h"
 #include "UIEvent.h"
 #include "UILayoutSolver.h"
+#include "UILog.h"
 #include "UITypes.h"
 
 #include <map>
@@ -23,7 +24,7 @@ public:
     friend class UIManager;
 
     explicit UIWidget(std::string name = {});
-    virtual ~UIWidget() = default;
+    virtual ~UIWidget();
 
     UIWidget(const UIWidget&) = delete;
     UIWidget& operator=(const UIWidget&) = delete;
@@ -35,6 +36,7 @@ public:
         TWidget* raw = child.get();
         child->m_parent = this;
         child->MarkDirty();
+        LAMBUI_LOGT("UIWidget", "CreateChild: '{}' parented to '{}'", raw->GetName(), m_name);
         m_children.push_back(std::move(child));
         return raw;
     }

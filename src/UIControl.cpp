@@ -2,6 +2,10 @@
 
 namespace LambUI {
 
+namespace {
+constexpr const char* TAG = "UIControl";
+} // namespace
+
 UIControl::UIControl(std::string name) : UIWidget(std::move(name)) {}
 
 void UIControl::OnEvent(const UIEventData& data) {
@@ -18,6 +22,7 @@ void UIControl::OnEvent(const UIEventData& data) {
     }
 
     if (m_state != previous) {
+        LAMBUI_LOGT(TAG, "'{}' state {} -> {}", GetName(), ToString(previous), ToString(m_state));
         MarkDirty();
         OnStateChanged(previous, m_state);
     }

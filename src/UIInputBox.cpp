@@ -4,6 +4,8 @@
 namespace LambUI {
 
 namespace {
+constexpr const char* TAG = "UIInputBox";
+
 // Minimal UTF-8 encoder; input boxes store text as UTF-8 for engine/font compatibility.
 void AppendUtf8(std::string& out, char32_t codepoint) {
     if (codepoint <= 0x7F) {
@@ -27,11 +29,13 @@ void AppendUtf8(std::string& out, char32_t codepoint) {
 UIInputBox::UIInputBox(std::string name) : UIControl(std::move(name)) {}
 
 void UIInputBox::OnFocusGained() {
+    LAMBUI_LOGT(TAG, "'{}' OnFocusGained", GetName());
     m_isFocused = true;
     MarkDirty();
 }
 
 void UIInputBox::OnFocusLost() {
+    LAMBUI_LOGT(TAG, "'{}' OnFocusLost", GetName());
     m_isFocused = false;
     MarkDirty();
 }
@@ -45,6 +49,7 @@ void UIInputBox::OnKeyEvent(uint32_t scanCode, bool isDown) {
 void UIInputBox::AppendCharacter(char32_t codepoint) {
     if (!m_isFocused) return;
     AppendUtf8(m_text, codepoint);
+    LAMBUI_LOGT(TAG, "'{}' text -> '{}'", GetName(), m_text);
     MarkDirty();
     FireEvent(UIEventData{UIEventType::OnTextChanged});
 }
@@ -52,16 +57,19 @@ void UIInputBox::AppendCharacter(char32_t codepoint) {
 void UIInputBox::Backspace() {
     if (!m_isFocused || m_text.empty()) return;
     m_text.pop_back();
+    LAMBUI_LOGT(TAG, "'{}' text -> '{}'", GetName(), m_text);
     MarkDirty();
     FireEvent(UIEventData{UIEventType::OnTextChanged});
 }
 
 void UIInputBox::SubmitEnter() {
     if (!m_isFocused) return;
+    LAMBUI_LOGT(TAG, "'{}' SubmitEnter", GetName());
     FireEvent(UIEventData{UIEventType::OnEnterPressed});
 }
 
 void UIInputBox::SetText(const std::string& text) {
+    LAMBUI_LOGT(TAG, "'{}' SetText('{}')", GetName(), text);
     m_text = text;
     MarkDirty();
 }

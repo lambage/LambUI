@@ -3,9 +3,14 @@
 
 namespace LambUI {
 
+namespace {
+constexpr const char* TAG = "UITextWidget";
+} // namespace
+
 UITextWidget::UITextWidget(std::string name) : UIWidget(std::move(name)) {}
 
 void UITextWidget::SetText(const std::string& text) {
+    LAMBUI_LOGT(TAG, "'{}' SetText('{}')", GetName(), text);
     m_text = text;
     if (m_textMeasurer) {
         float width = 0.0f, height = 0.0f;

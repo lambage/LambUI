@@ -2,9 +2,14 @@
 
 namespace LambUI {
 
+namespace {
+constexpr const char* TAG = "UITextureWidget";
+} // namespace
+
 UITextureWidget::UITextureWidget(std::string name) : UIWidget(std::move(name)) {}
 
 void UITextureWidget::SetUVRect(float u0, float v0, float u1, float v1) {
+    LAMBUI_LOGT(TAG, "'{}' SetUVRect({}, {}, {}, {})", GetName(), u0, v0, u1, v1);
     m_u0 = u0; m_v0 = v0; m_u1 = u1; m_v1 = v1;
     MarkDirty();
 }

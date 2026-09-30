@@ -3,6 +3,7 @@
 namespace LambUI {
 
 namespace {
+constexpr const char* TAG = "UIDropDownBox";
 const std::string kEmptyOption;
 constexpr float kOptionRowHeight = 24.0f;
 } // namespace
@@ -10,6 +11,7 @@ constexpr float kOptionRowHeight = 24.0f;
 UIDropDownBox::UIDropDownBox(std::string name) : UIControl(std::move(name)) {}
 
 void UIDropDownBox::SetOptions(std::vector<std::string> options) {
+    LAMBUI_LOGT(TAG, "'{}' SetOptions({} options)", GetName(), options.size());
     m_options = std::move(options);
     m_selectedIndex = m_options.empty() ? -1 : 0;
     RebuildOptionButtons();
@@ -17,6 +19,7 @@ void UIDropDownBox::SetOptions(std::vector<std::string> options) {
 
 void UIDropDownBox::SetSelectedIndex(int index) {
     if (index < 0 || index >= static_cast<int>(m_options.size())) return;
+    LAMBUI_LOGT(TAG, "'{}' SetSelectedIndex({} -> {})", GetName(), m_selectedIndex, index);
     m_selectedIndex = index;
     m_isExpanded = false;
     for (UIButton* button : m_optionButtons) button->SetVisible(false);
@@ -33,6 +36,7 @@ const std::string& UIDropDownBox::GetSelectedOption() const {
 
 void UIDropDownBox::Toggle() {
     m_isExpanded = !m_isExpanded;
+    LAMBUI_LOGT(TAG, "'{}' Toggle -> expanded={}", GetName(), m_isExpanded);
     for (UIButton* button : m_optionButtons) {
         button->SetVisible(m_isExpanded);
     }

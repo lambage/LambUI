@@ -2,9 +2,14 @@
 
 namespace LambUI {
 
+namespace {
+constexpr const char* TAG = "UICanvasWidget";
+} // namespace
+
 UICanvasWidget::UICanvasWidget(std::string name) : UIWidget(std::move(name)) {}
 
 void UICanvasWidget::SetRenderCallback(UICustomRenderCallback callback, void* userData) {
+    LAMBUI_LOGT(TAG, "'{}' SetRenderCallback(userData={})", GetName(), fmt::ptr(userData));
     m_renderCallback = std::move(callback);
     m_userData = userData;
     MarkDirty();

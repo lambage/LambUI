@@ -3,9 +3,14 @@
 
 namespace LambUI {
 
+namespace {
+constexpr const char* TAG = "UISlider";
+} // namespace
+
 UISlider::UISlider(std::string name) : UIControl(std::move(name)) {}
 
 void UISlider::SetMinMaxValues(float minValue, float maxValue) {
+    LAMBUI_LOGT(TAG, "'{}' SetMinMaxValues({}, {})", GetName(), minValue, maxValue);
     m_minValue = minValue;
     m_maxValue = maxValue;
     SetValue(m_value);
@@ -14,6 +19,7 @@ void UISlider::SetMinMaxValues(float minValue, float maxValue) {
 void UISlider::SetValue(float value) {
     const float clamped = std::clamp(value, m_minValue, m_maxValue);
     if (clamped != m_value) {
+        LAMBUI_LOGT(TAG, "'{}' value {} -> {}", GetName(), m_value, clamped);
         m_value = clamped;
         MarkDirty();
         FireEvent(UIEventData{UIEventType::OnValueChanged, 0.0f, 0.0f, MouseButton::Left, false});

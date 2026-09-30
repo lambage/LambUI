@@ -7,6 +7,15 @@ namespace LambUI {
 
 enum class ControlState { Normal, Hovered, Pressed };
 
+inline const char* ToString(ControlState state) {
+    switch (state) {
+        case ControlState::Normal: return "Normal";
+        case ControlState::Hovered: return "Hovered";
+        case ControlState::Pressed: return "Pressed";
+    }
+    return "Unknown";
+}
+
 // Common base for widgets that react visually to mouse hover/press transitions.
 class LAMBUI_API UIControl : public UIWidget {
 public:

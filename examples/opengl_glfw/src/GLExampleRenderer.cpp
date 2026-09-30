@@ -32,6 +32,59 @@ void GLExampleRenderer::SetViewportSize(int width, int height) {
     m_viewportHeight = height;
 }
 
+bool GLExampleRenderer::LoadFont(const FontAtlas& atlas) {
+    m_fontAtlas = &atlas;
+
+    if (m_fontTexture == 0) {
+        glGenTextures(1, &m_fontTexture);
+    }
+    glBindTexture(GL_TEXTURE_2D, m_fontTexture);
+    // GL_INTENSITY replicates the single SDF channel into R,G,B,A so vertex
+    // color tinting (glColor4f) and GL_ALPHA_TEST both work against it.
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_INTENSITY, atlas.GetAtlasWidth(), atlas.GetAtlasHeight(),
+                 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, atlas.GetAtlasPixels().data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return true;
+}
+
+void GLExampleRenderer::DrawString(const UIRenderCommand& cmd) {
+    if (!m_fontAtlas || m_fontTexture == 0) return;
+
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_ALPHA_TEST);
+    // Threshold slightly below the baked on-edge value for a touch of AA falloff.
+    glAlphaFunc(GL_GREATER, static_cast<float>(m_fontAtlas->GetOnEdgeValue()) / 255.0f - 0.15f);
+    glBindTexture(GL_TEXTURE_2D, m_fontTexture);
+    SetGLColor(cmd.color);
+
+    float penX = cmd.x;
+    const float penY = cmd.y + m_fontAtlas->GetAscent();
+
+    glBegin(GL_QUADS);
+    for (unsigned char c : cmd.text) {
+        const GlyphInfo* glyph = m_fontAtlas->FindGlyph(static_cast<char32_t>(c));
+        if (!glyph) continue;
+
+        if (glyph->width > 0.0f && glyph->height > 0.0f) {
+            const float qx = penX + glyph->bearingX;
+            const float qy = penY + glyph->bearingY;
+            glTexCoord2f(glyph->u0, glyph->v0); glVertex2f(qx, qy);
+            glTexCoord2f(glyph->u1, glyph->v0); glVertex2f(qx + glyph->width, qy);
+            glTexCoord2f(glyph->u1, glyph->v1); glVertex2f(qx + glyph->width, qy + glyph->height);
+            glTexCoord2f(glyph->u0, glyph->v1); glVertex2f(qx, qy + glyph->height);
+        }
+        penX += glyph->advance;
+    }
+    glEnd();
+
+    glDisable(GL_ALPHA_TEST);
+    glDisable(GL_TEXTURE_2D);
+}
+
 void GLExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>& commands) {
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -50,16 +103,9 @@ void GLExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>&
                 DrawQuad(cmd);
                 break;
 
-            case RenderCommandType::DrawString: {
-                // TODO: replace with an MSDF text pipeline (goals.txt item 5).
-                // Draw a faint placeholder box so text regions stay visible for now.
-                UIRenderCommand placeholder = cmd;
-                placeholder.color = 0x80808080u;
-                placeholder.width = placeholder.width > 0.0f ? placeholder.width : 80.0f;
-                placeholder.height = placeholder.height > 0.0f ? placeholder.height : 16.0f;
-                DrawQuad(placeholder);
+            case RenderCommandType::DrawString:
+                DrawString(cmd);
                 break;
-            }
 
             case RenderCommandType::PushScissor: {
                 glEnable(GL_SCISSOR_TEST);

@@ -17,6 +17,30 @@ enum class MouseButton {
     Middle = 2
 };
 
+inline const char* ToString(AnchorPoint point) {
+    switch (point) {
+        case AnchorPoint::TopLeft: return "TopLeft";
+        case AnchorPoint::TopRight: return "TopRight";
+        case AnchorPoint::BottomLeft: return "BottomLeft";
+        case AnchorPoint::BottomRight: return "BottomRight";
+        case AnchorPoint::Center: return "Center";
+        case AnchorPoint::Left: return "Left";
+        case AnchorPoint::Right: return "Right";
+        case AnchorPoint::Top: return "Top";
+        case AnchorPoint::Bottom: return "Bottom";
+    }
+    return "Unknown";
+}
+
+inline const char* ToString(MouseButton button) {
+    switch (button) {
+        case MouseButton::Left: return "Left";
+        case MouseButton::Right: return "Right";
+        case MouseButton::Middle: return "Middle";
+    }
+    return "Unknown";
+}
+
 enum class RenderCommandType {
     DrawQuad,
     DrawString,

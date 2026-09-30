@@ -42,6 +42,8 @@ void CharCallback(GLFWwindow*, unsigned int codepoint) {
 } // namespace
 
 int main() {
+    LambUI::Log::UseDefaultConsoleSink();
+
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW\n";
         return -1;
@@ -67,7 +69,16 @@ int main() {
     g_renderer = renderer.get();
     renderer->SetViewportSize(1280, 720);
 
-    UIManager uiManager(renderer);
+    // Demo-only: loads a local system font. Real consumers should ship/point
+    // at their own TTF asset; FontAtlas::LoadFromFile takes any TTF/OTF path.
+    auto fontAtlas = std::make_shared<FontAtlas>();
+    std::shared_ptr<FontAtlasTextMeasurer> textMeasurer;
+    if (fontAtlas->LoadFromFile("C:/Windows/Fonts/segoeui.ttf")) {
+        renderer->LoadFont(*fontAtlas);
+        textMeasurer = std::make_shared<FontAtlasTextMeasurer>(*fontAtlas);
+    }
+
+    UIManager uiManager(renderer, textMeasurer);
     g_uiManager = &uiManager;
     uiManager.SetDisplaySize(1280.0f, 720.0f);
 
@@ -101,6 +112,11 @@ int main() {
     slider->RegisterCallback(UIEventType::OnValueChanged, [&slider](const UIEventData& data) {
         std::cout << "DemoSlider value changed new value: " << slider->GetValue() << "\n";
     });
+
+    UITextWidget* label = panel->CreateChild<UITextWidget>("DemoLabel");
+    label->SetTextMeasurer(uiManager.GetTextMeasurer());
+    label->SetText("Hello, LambUI!");
+    label->SetPoint(AnchorPoint::Top, slider, AnchorPoint::Bottom, 0.0f, 16.0f);
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();

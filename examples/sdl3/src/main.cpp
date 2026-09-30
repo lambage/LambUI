@@ -8,6 +8,8 @@
 using namespace LambUI;
 
 int main() {
+    LambUI::Log::UseDefaultConsoleSink();
+
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::cerr << "Failed to initialize SDL: " << SDL_GetError() << "\n";
         return -1;
@@ -22,7 +24,17 @@ int main() {
     }
 
     auto renderer = std::make_shared<SDLExampleRenderer>(sdlRenderer);
-    UIManager uiManager(renderer);
+
+    // Demo-only: loads a local system font. Real consumers should ship/point
+    // at their own TTF asset; FontAtlas::LoadFromFile takes any TTF/OTF path.
+    auto fontAtlas = std::make_shared<FontAtlas>();
+    std::shared_ptr<FontAtlasTextMeasurer> textMeasurer;
+    if (fontAtlas->LoadFromFile("C:/Windows/Fonts/segoeui.ttf")) {
+        renderer->LoadFont(*fontAtlas);
+        textMeasurer = std::make_shared<FontAtlasTextMeasurer>(*fontAtlas);
+    }
+
+    UIManager uiManager(renderer, textMeasurer);
     uiManager.SetDisplaySize(1280.0f, 720.0f);
 
     SDL_StartTextInput(window);
@@ -49,6 +61,11 @@ int main() {
     slider->SetSize(180.0f, 16.0f);
     slider->SetPoint(AnchorPoint::Top, button, AnchorPoint::Bottom, 0.0f, 16.0f);
     slider->SetMinMaxValues(0.0f, 100.0f);
+
+    UITextWidget* label = panel->CreateChild<UITextWidget>("DemoLabel");
+    label->SetTextMeasurer(uiManager.GetTextMeasurer());
+    label->SetText("Hello, LambUI!");
+    label->SetPoint(AnchorPoint::Top, slider, AnchorPoint::Bottom, 0.0f, 16.0f);
 
     bool running = true;
     while (running) {
