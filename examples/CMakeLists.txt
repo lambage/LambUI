@@ -1,0 +1,20 @@
+option(LAMBUI_EXAMPLE_OPENGL "Build the OpenGL (GLFW) LambUI example" ON)
+option(LAMBUI_EXAMPLE_VULKAN "Build the Vulkan LambUI example" ON)
+option(LAMBUI_EXAMPLE_SDL3 "Build the SDL3 LambUI example" ON)
+
+if (LAMBUI_EXAMPLE_OPENGL)
+    add_subdirectory(opengl_glfw)
+endif()
+
+if (LAMBUI_EXAMPLE_VULKAN)
+    find_package(Vulkan)
+    if (Vulkan_FOUND)
+        add_subdirectory(vulkan)
+    else()
+        message(STATUS "LambUI: Vulkan SDK not found, skipping the Vulkan example")
+    endif()
+endif()
+
+if (LAMBUI_EXAMPLE_SDL3)
+    add_subdirectory(sdl3)
+endif()

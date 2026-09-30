@@ -1,2 +1,143 @@
 # LambUI
-A fully functioning 2d widget library with layouts and frames.
+
+An engine-agnostic, retained-mode UI library for games, in the style of
+World of Warcraft's Point-and-Anchor frame system. LambUI is pure C++17 with
+zero graphics-API dependencies; a companion Lua binding library and a set of
+example renderer backends live alongside it in this same repository.
+
+See [goals.txt](goals.txt) for the original design discussion this project is
+based on.
+
+## Directory layout
+
+```
+LambUI/
+├── CMakeLists.txt          # top-level build, options, install/export
+├── cmake/                  # install/export helper modules
+├── include/LambUI/         # public headers (the library's entire public API)
+├── src/                    # library implementation (UIWidget, UIManager, ...)
+├── lua/                    # optional sol2-based Lua scripting companion library
+├── examples/               # renderer backend showcases (OpenGL, Vulkan, SDL3)
+└── tests/                  # GoogleTest unit tests (layout solver, events, ...)
+```
+
+## Architecture: the Dual-Tree Pattern
+
+- **Logical tree** (`UIWidget` and subclasses): parent/child hierarchy,
+  anchors, visibility, event callbacks. Knows nothing about any graphics API.
+- **Render tree** (`UIRenderCommand`): a flat vector of draw instructions
+  (`DrawQuad`, `DrawString`, `PushScissor`/`PopScissor`, `CustomCallback`)
+  produced once per frame by `UIManager::Render()`.
+
+Your engine implements `LambUI::IRenderer::SubmitRenderCommands()` and reads
+that flat vector to issue native draw calls. The library never calls into
+Vulkan/OpenGL/D3D12/etc. itself — see `examples/` for three different
+implementations of that one interface.
+
+### How SOLID maps onto this codebase
+
+- **Single Responsibility**: layout math lives in the pure, dependency-free
+  `ResolveAnchoredRect()` function ([include/LambUI/UILayoutSolver.h](include/LambUI/UILayoutSolver.h)),
+  separate from tree ownership (`UIWidget`) and separate from input
+  routing/frame orchestration (`UIManager`).
+- **Open/Closed**: new widget types are added by subclassing `UIWidget`/`UIControl`
+  and overriding `OnGenerateRenderCommands`/`OnEvent` — `UIManager` never
+  needs to change to support a new widget type.
+- **Liskov Substitution**: every concrete widget (`UIButton`, `UISlider`, ...)
+  is a fully substitutable `UIWidget`; `UIManager` and the layout solver only
+  ever operate through that base interface.
+- **Interface Segregation**: `IRenderer` (drawing) and `ITextMeasurer` (text
+  metrics) are separate small interfaces, as are `IDraggable`/`IFocusable`
+  (input capture) — a widget only implements what it actually needs.
+- **Dependency Inversion**: `UIManager` depends on the `IRenderer` abstraction,
+  never on a concrete backend; `UISlider`/`UIInputBox` are discovered via
+  `dynamic_cast<IDraggable*>`/`dynamic_cast<IFocusable*>` rather than
+  `UIManager` hardcoding those concrete types.
+
+### Known limitations (by design, for now)
+
+- Anchors must reference a widget that has *already* been positioned this
+  pass (typically its parent or an earlier sibling) — there's no
+  general dependency-graph solver for arbitrary forward references.
+- Text rendering has no real glyph pipeline yet; `DrawString` commands carry a
+  UTF-8 string and an opaque `fontHandle`, and each example renderer draws a
+  placeholder box. MSDF text (goals.txt item 5) is a follow-up.
+- The Vulkan example only brings up a window/swapchain/clear-color loop; it
+  does not yet translate `UIRenderCommand`s into an actual pipeline (see the
+  TODO in `examples/vulkan/src/VulkanExampleRenderer.cpp`). The OpenGL and
+  SDL3 examples do draw the real widget tree.
+
+## Building
+
+Requires CMake 3.20+ and a C++17 compiler. All third-party dependencies
+(GoogleTest, GLFW, SDL3, sol2, Lua) are fetched on demand via `FetchContent` —
+no vcpkg/Conan setup required.
+
+```powershell
+cmake -S . -B build -DLAMBUI_BUILD_EXAMPLES=ON -DLAMBUI_BUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build
+```
+
+On Windows with MSVC, run this from a "Developer PowerShell for VS" (or after
+calling `vcvarsall.bat`) so `cl.exe` is on `PATH`, or pass `-G "Visual Studio 17 2022"`
+to let CMake drive `msbuild` itself instead of Ninja.
+
+### Build options
+
+| Option | Default | Description |
+|---|---|---|
+| `LAMBUI_BUILD_EXAMPLES` | `ON` if top-level | Build `examples/` (OpenGL, Vulkan, SDL3) |
+| `LAMBUI_BUILD_TESTS` | `ON` if top-level | Build the GoogleTest suite in `tests/` |
+| `LAMBUI_BUILD_LUA_BINDINGS` | `OFF` | Build `lua/` (sol2 + Lua, fetched on demand) |
+| `LAMBUI_INSTALL` | `ON` if top-level | Generate install/export targets |
+| `LAMBUI_EXAMPLE_OPENGL` / `_VULKAN` / `_SDL3` | `ON` | Toggle individual examples (Vulkan auto-skips if the SDK isn't found) |
+
+### Consuming LambUI from another CMake project
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(LambUI GIT_REPOSITORY <this-repo-url> GIT_TAG main)
+set(LAMBUI_BUILD_EXAMPLES OFF)
+set(LAMBUI_BUILD_TESTS OFF)
+FetchContent_MakeAvailable(LambUI)
+
+target_link_libraries(my_game PRIVATE LambUI::lambui)
+```
+
+Or, after `cmake --install`, via `find_package(LambUI REQUIRED)` and linking
+`LambUI::lambui`.
+
+## Examples
+
+Each example under `examples/` builds the *exact same* `LambUI::UIManager`
+demo widget tree (a panel with a button and a slider) and only swaps out the
+`IRenderer` implementation and the windowing/input glue:
+
+- `lambui_example_opengl` — GLFW + legacy OpenGL 1.1 immediate mode (no
+  loader dependency needed).
+- `lambui_example_sdl3` — SDL3 + its built-in 2D `SDL_Renderer` API.
+- `lambui_example_vulkan` — GLFW + Vulkan window/swapchain bring-up; drawing
+  the widgets themselves is still TODO (see limitations above).
+
+## Lua bindings
+
+`lua/` builds `lambui_lua`, a small sol2-based binding layer exposing a
+WoW-like scripting surface:
+
+```lua
+local playerFrame = UI.CreateFrame("Frame", "PlayerUnitFrame")
+playerFrame:SetSize(200, 60)
+playerFrame:SetPoint("TOPLEFT", UI.Root, "TOPLEFT", 20, -20)
+
+local healthBar = playerFrame:CreateStatusBar("PlayerHealthBar")
+healthBar:SetPoint("TOPLEFT", playerFrame, "TOPLEFT", 10, -10)
+healthBar:SetMinMaxValues(0, 100)
+
+playerFrame:RegisterEvent("PLAYER_HEALTH_CHANGED", function(newHealth)
+    healthBar:SetValue(newHealth)
+end)
+```
+
+Enable it with `-DLAMBUI_BUILD_LUA_BINDINGS=ON`. It is off by default so that
+consumers who only want the core C++ library don't pay for fetching Lua/sol2.

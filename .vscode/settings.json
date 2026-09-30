@@ -1,0 +1,19 @@
+{
+    "C_Cpp.intelliSenseEngine": "disabled",    
+    "terminal.integrated.profiles.windows": {
+        "Developer Command Prompt": {
+            "path": [
+                "${env:windir}\\Sysnative\\cmd.exe",
+                "${env:windir}\\System32\\cmd.exe"
+            ],
+            "args": [
+                "/k",
+                "\"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\Tools\\VsDevCmd.bat\"",
+                "-arch=x64",
+                "-host_arch=x64"
+            ],
+            "icon": "terminal-cmd",
+            "overrideName": true
+        }
+    }
+}
