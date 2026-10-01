@@ -12,6 +12,7 @@ public:
     void SetSelectedIndex(int index);
     int GetSelectedIndex() const { return m_selectedIndex; }
     size_t GetTabCount() const { return m_tabs.size(); }
+    void OnKeyEvent(uint32_t scanCode, bool isDown) override;
     UIWidget* GetPage(int index) const;
     bool ClipsChildren() const override { return true; }
 

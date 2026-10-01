@@ -73,6 +73,46 @@ void UITreeView::RebuildRows() {
     SetContentSize(std::max(0.0f, GetComputedRect().width), static_cast<float>(m_visibleRows.size()) * RowHeight);
 }
 
+void UITreeView::OnKeyEvent(uint32_t scanCode, bool isDown) {
+    LAMBUI_LOGT(TAG, "'{}' OnKeyEvent({}, {})", GetName(), scanCode, isDown);
+    if (!isDown || m_visibleRows.empty()) return;
+    if (scanCode != ScanCode::Up && scanCode != ScanCode::Down && scanCode != ScanCode::Left &&
+        scanCode != ScanCode::Right && scanCode != ScanCode::Home && scanCode != ScanCode::End &&
+        scanCode != ScanCode::Enter && scanCode != ScanCode::Space) return;
+    auto selected = std::find_if(m_visibleRows.begin(), m_visibleRows.end(), [this](const Row& row) { return row.node == m_selectedNode; });
+    if (selected == m_visibleRows.end()) SetSelectedNode(m_visibleRows.front().node);
+    else {
+        const size_t index = static_cast<size_t>(selected - m_visibleRows.begin());
+        const Row row = *selected;
+        const auto children = m_nodes[row.node - 1].children;
+        if (scanCode == ScanCode::Down) SetSelectedNode(m_visibleRows[std::min(index + 1, m_visibleRows.size() - 1)].node);
+        else if (scanCode == ScanCode::Up) SetSelectedNode(m_visibleRows[index == 0 ? 0 : index - 1].node);
+        else if (scanCode == ScanCode::Right && !children.empty()) {
+            if (!IsExpanded(row.node)) SetExpanded(row.node, true);
+            else SetSelectedNode(children.front());
+        } else if (scanCode == ScanCode::Left) {
+            if (!children.empty() && IsExpanded(row.node)) SetExpanded(row.node, false);
+            else {
+                for (size_t parent = index; parent > 0; --parent) {
+                    if (m_visibleRows[parent - 1].depth < row.depth) {
+                        SetSelectedNode(m_visibleRows[parent - 1].node);
+                        break;
+                    }
+                }
+            }
+        } else if ((scanCode == ScanCode::Enter || scanCode == ScanCode::Space) && !children.empty()) {
+            SetExpanded(row.node, !IsExpanded(row.node));
+        }
+    }
+    if (scanCode == ScanCode::Home) SetSelectedNode(m_visibleRows.front().node);
+    else if (scanCode == ScanCode::End) SetSelectedNode(m_visibleRows.back().node);
+    selected = std::find_if(m_visibleRows.begin(), m_visibleRows.end(), [this](const Row& row) { return row.node == m_selectedNode; });
+    if (selected != m_visibleRows.end()) {
+        const auto& rect = GetComputedRect();
+        EnsureVisible(UIRect{rect.x, rect.y + static_cast<float>(selected - m_visibleRows.begin()) * RowHeight - GetScrollY(), 0.0f, RowHeight});
+    }
+}
+
 void UITreeView::OnLayoutChanged() {
     LAMBUI_LOGT(TAG, "'{}' OnLayoutChanged", GetName());
     UIScrollContainer::OnLayoutChanged();

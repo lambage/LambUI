@@ -40,6 +40,16 @@ void UITabControl::SetSelectedIndex(int index) {
     FireEvent(UIEventData{UIEventType::OnValueChanged});
 }
 
+void UITabControl::OnKeyEvent(uint32_t scanCode, bool isDown) {
+    LAMBUI_LOGT(TAG, "'{}' OnKeyEvent({}, {})", GetName(), scanCode, isDown);
+    if (!isDown || m_tabs.empty()) return;
+    const int count = static_cast<int>(m_tabs.size());
+    if (scanCode == ScanCode::Right || scanCode == ScanCode::Down) SetSelectedIndex((m_selectedIndex + 1) % count);
+    else if (scanCode == ScanCode::Left || scanCode == ScanCode::Up) SetSelectedIndex((m_selectedIndex + count - 1) % count);
+    else if (scanCode == ScanCode::Home) SetSelectedIndex(0);
+    else if (scanCode == ScanCode::End) SetSelectedIndex(count - 1);
+}
+
 void UITabControl::OnLayoutChanged() {
     LAMBUI_LOGT(TAG, "'{}' OnLayoutChanged", GetName());
     const auto& rect = GetComputedRect();

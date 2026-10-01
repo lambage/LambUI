@@ -213,9 +213,29 @@ int RunExample(SDL_Window* window, SDL_Renderer* sdlRenderer, const std::string&
                     break;
                 }
                 case SDL_EVENT_KEY_DOWN:
-                case SDL_EVENT_KEY_UP:
-                    uiManager.InjectKeyEvent(static_cast<uint32_t>(event.key.key), event.key.down);
+                case SDL_EVENT_KEY_UP: {
+                    LAMBUI_LOGT(TAG, "Key({}, {})", event.key.key, event.key.down);
+                    uint32_t scanCode = 0;
+                    switch (event.key.key) {
+                        case SDLK_BACKSPACE: scanCode = ScanCode::Backspace; break;
+                        case SDLK_RETURN: case SDLK_KP_ENTER: scanCode = ScanCode::Enter; break;
+                        case SDLK_ESCAPE: scanCode = ScanCode::Escape; break;
+                        case SDLK_SPACE: scanCode = ScanCode::Space; break;
+                        case SDLK_TAB: scanCode = ScanCode::Tab; break;
+                        case SDLK_LSHIFT: scanCode = ScanCode::LeftShift; break;
+                        case SDLK_RSHIFT: scanCode = ScanCode::RightShift; break;
+                        case SDLK_LEFT: scanCode = ScanCode::Left; break;
+                        case SDLK_RIGHT: scanCode = ScanCode::Right; break;
+                        case SDLK_UP: scanCode = ScanCode::Up; break;
+                        case SDLK_DOWN: scanCode = ScanCode::Down; break;
+                        case SDLK_HOME: scanCode = ScanCode::Home; break;
+                        case SDLK_END: scanCode = ScanCode::End; break;
+                        case SDLK_DELETE: scanCode = ScanCode::Delete; break;
+                        default: break;
+                    }
+                    if (scanCode) uiManager.InjectKeyEvent(scanCode, event.key.down);
                     break;
+                }
                 case SDL_EVENT_TEXT_INPUT:
                     for (const char* character = event.text.text; *character != '\0'; ++character) {
                         if (static_cast<unsigned char>(*character) < 0x80) {

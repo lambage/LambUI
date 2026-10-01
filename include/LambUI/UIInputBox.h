@@ -2,13 +2,12 @@
 
 #include "lambui_export.h"
 #include "UIControl.h"
-#include "UIInteractionInterfaces.h"
 #include <string>
 
 namespace LambUI {
 
 // For player name fields, chat entry bars, or macro creation.
-class LAMBUI_API UIInputBox : public UIControl, public IFocusable {
+class LAMBUI_API UIInputBox : public UIControl {
 public:
     explicit UIInputBox(std::string name = {});
 
@@ -18,6 +17,7 @@ public:
     void SubmitEnter();
 
     const std::string& GetText() const { return m_text; }
+    size_t GetCursorPosition() const { return m_cursor; }
     void SetText(const std::string& text);
     void SetFont(void* fontHandle);
     void* GetFont() const { return m_fontHandle; }
@@ -33,6 +33,7 @@ protected:
 
 private:
     std::string m_text;
+    size_t m_cursor = 0;
     void* m_fontHandle = nullptr;
     bool m_isFocused = false;
 };

@@ -62,6 +62,16 @@ void InstallInput(GLFWwindow* window, UIManager& manager) {
         else if (key == GLFW_KEY_ENTER || key == GLFW_KEY_KP_ENTER) scanCode = ScanCode::Enter;
         else if (key == GLFW_KEY_ESCAPE) scanCode = ScanCode::Escape;
         else if (key == GLFW_KEY_SPACE) scanCode = ScanCode::Space;
+        else if (key == GLFW_KEY_TAB) scanCode = ScanCode::Tab;
+        else if (key == GLFW_KEY_LEFT_SHIFT) scanCode = ScanCode::LeftShift;
+        else if (key == GLFW_KEY_RIGHT_SHIFT) scanCode = ScanCode::RightShift;
+        else if (key == GLFW_KEY_LEFT) scanCode = ScanCode::Left;
+        else if (key == GLFW_KEY_RIGHT) scanCode = ScanCode::Right;
+        else if (key == GLFW_KEY_UP) scanCode = ScanCode::Up;
+        else if (key == GLFW_KEY_DOWN) scanCode = ScanCode::Down;
+        else if (key == GLFW_KEY_HOME) scanCode = ScanCode::Home;
+        else if (key == GLFW_KEY_END) scanCode = ScanCode::End;
+        else if (key == GLFW_KEY_DELETE) scanCode = ScanCode::Delete;
         const bool hadPopup = Manager(source)->GetActivePopup() != nullptr;
         if (scanCode) Manager(source)->InjectKeyEvent(scanCode, action != GLFW_RELEASE);
         if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS && !hadPopup) glfwSetWindowShouldClose(source, GLFW_TRUE);

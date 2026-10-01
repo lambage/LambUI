@@ -1,5 +1,6 @@
 #include "LambUI/UIDropDownBox.h"
 #include "LambUI/UITextWidget.h"
+#include <algorithm>
 
 namespace LambUI {
 
@@ -45,6 +46,31 @@ void UIDropDownBox::Toggle() {
     MarkDirty();
 }
 
+void UIDropDownBox::OnKeyEvent(uint32_t scanCode, bool isDown) {
+    LAMBUI_LOGT(TAG, "'{}' OnKeyEvent({}, {})", GetName(), scanCode, isDown);
+    if (!isDown) {
+        UIControl::OnKeyEvent(scanCode, false);
+        return;
+    }
+    if (scanCode == ScanCode::Escape) {
+        if (m_isExpanded) Toggle();
+    } else if (!m_options.empty() && (scanCode == ScanCode::Up || scanCode == ScanCode::Down ||
+               scanCode == ScanCode::Home || scanCode == ScanCode::End)) {
+        const int last = static_cast<int>(m_options.size()) - 1;
+        int index = m_selectedIndex;
+        if (scanCode == ScanCode::Up) index = std::max(0, index - 1);
+        else if (scanCode == ScanCode::Down) index = std::min(last, index + 1);
+        else index = scanCode == ScanCode::Home ? 0 : last;
+        if (index != m_selectedIndex) SetSelectedIndex(index);
+    } else UIControl::OnKeyEvent(scanCode, true);
+}
+
+void UIDropDownBox::OnFocusLost() {
+    LAMBUI_LOGT(TAG, "'{}' OnFocusLost", GetName());
+    UIControl::OnFocusLost();
+    if (m_isExpanded) Toggle();
+}
+
 void UIDropDownBox::OnEvent(const UIEventData& data) {
     LAMBUI_LOGT(TAG, "'{}' OnEvent({})", GetName(), ToString(data.type));
     UIControl::OnEvent(data);
@@ -65,6 +91,7 @@ void UIDropDownBox::RebuildOptionButtons() {
             option = m_optionButtons[optionIndex];
         } else {
             option = CreateChild<UIButton>(GetName() + "_Option" + std::to_string(optionIndex));
+            option->SetKeyboardEnabled(false);
             option->SetNormalColor(0x404040FFu);
             option->SetHoverColor(0x606060FFu);
             option->SetPressedColor(0x303030FFu);

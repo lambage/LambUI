@@ -45,6 +45,11 @@ void UIWidget::SetSize(float width, float height) {
     MarkDirty();
 }
 
+void UIWidget::SetKeyboardEnabled(bool enabled) {
+    LAMBUI_LOGT(TAG, "'{}' SetKeyboardEnabled({})", GetName(), enabled);
+    m_isKeyboardEnabled = enabled;
+}
+
 void UIWidget::SetVisible(bool visible) {
     if (visible != m_isVisible) {
         LAMBUI_LOGT(TAG, "'{}' SetVisible({})", m_name, visible);

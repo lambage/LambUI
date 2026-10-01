@@ -97,9 +97,19 @@ struct UIRenderCommand {
 // before calling UIManager::InjectKeyEvent.
 namespace ScanCode {
     constexpr uint32_t Backspace = 8;
+    constexpr uint32_t Tab = 9;
     constexpr uint32_t Enter = 13;
     constexpr uint32_t Escape = 27;
     constexpr uint32_t Space = 32;
+    constexpr uint32_t LeftShift = 0x100;
+    constexpr uint32_t RightShift = 0x101;
+    constexpr uint32_t Left = 0x102;
+    constexpr uint32_t Right = 0x103;
+    constexpr uint32_t Up = 0x104;
+    constexpr uint32_t Down = 0x105;
+    constexpr uint32_t Home = 0x106;
+    constexpr uint32_t End = 0x107;
+    constexpr uint32_t Delete = 0x108;
 } // namespace ScanCode
 
 } // namespace LambUI

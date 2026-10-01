@@ -5,6 +5,8 @@
 
 namespace LambUI {
 
+class UIWidget;
+
 // Implemented by widgets that want continuous mouse-move updates while the
 // mouse button remains held after a press began on them (e.g. UISlider).
 class LAMBUI_API IDraggable {
@@ -18,6 +20,8 @@ public:
 class LAMBUI_API IFocusable {
 public:
     virtual ~IFocusable() = default;
+    virtual bool CanFocus() const { return true; }
+    virtual UIWidget* GetFocusNeighbor(uint32_t) const { return nullptr; }
     virtual void OnFocusGained() {}
     virtual void OnFocusLost() {}
     virtual void OnCharacter(char32_t codepoint) = 0;

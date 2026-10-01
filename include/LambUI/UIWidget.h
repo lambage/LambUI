@@ -55,6 +55,8 @@ public:
     bool IsVisible() const { return m_isVisible; }
     void SetMouseEnabled(bool enabled) { m_isMouseEnabled = enabled; }
     bool IsMouseEnabled() const { return m_isMouseEnabled; }
+    void SetKeyboardEnabled(bool enabled);
+    bool IsKeyboardEnabled() const { return m_isKeyboardEnabled; }
     virtual bool ClipsChildren() const { return false; }
     void SetTooltip(std::string text);
     const std::string& GetTooltip() const { return m_tooltip; }
@@ -118,6 +120,7 @@ private:
     float m_height = 0.0f;
     bool m_isVisible = true;
     bool m_isMouseEnabled = true;
+    bool m_isKeyboardEnabled = true;
     bool m_isDirty = true;
 };
 

@@ -23,6 +23,8 @@ public:
 
     void Toggle();
     bool IsExpanded() const { return m_isExpanded; }
+    void OnKeyEvent(uint32_t scanCode, bool isDown) override;
+    void OnFocusLost() override;
 
 protected:
     void OnEvent(const UIEventData& data) override;

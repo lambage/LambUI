@@ -1,11 +1,10 @@
 #pragma once
 
 #include "UIControl.h"
-#include "UIInteractionInterfaces.h"
 
 namespace LambUI {
 
-class LAMBUI_API UICheckBox : public UIControl, public IFocusable {
+class LAMBUI_API UICheckBox : public UIControl {
 public:
     explicit UICheckBox(std::string name = {});
     ~UICheckBox() override;
@@ -15,6 +14,7 @@ public:
     bool IsChecked() const { return m_checked; }
     void SetEnabled(bool enabled);
     bool IsEnabled() const { return m_enabled; }
+    bool CanFocus() const override { return m_enabled && UIControl::CanFocus(); }
     void OnFocusGained() override;
     void OnFocusLost() override;
     void OnCharacter(char32_t) override {}

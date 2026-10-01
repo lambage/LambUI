@@ -29,6 +29,27 @@ void UIRadioButton::SetChecked(bool checked) {
     for (auto* radio : changed) radio->FireEvent(UIEventData{UIEventType::OnValueChanged});
 }
 
+UIWidget* UIRadioButton::GetFocusNeighbor(uint32_t scanCode) const {
+    if (scanCode != ScanCode::Left && scanCode != ScanCode::Right && scanCode != ScanCode::Up && scanCode != ScanCode::Down) return nullptr;
+    std::vector<UIRadioButton*> group;
+    for (const auto& sibling : GetSiblings()) {
+        auto* radio = dynamic_cast<UIRadioButton*>(sibling.get());
+        if (radio && radio->GetGroup() == m_group && radio->IsVisible() && radio->IsKeyboardEnabled() && radio->CanFocus()) group.push_back(radio);
+    }
+    const auto current = std::find(group.begin(), group.end(), this);
+    if (current == group.end()) return nullptr;
+    const size_t index = static_cast<size_t>(current - group.begin());
+    const bool backwards = scanCode == ScanCode::Left || scanCode == ScanCode::Up;
+    return group[(index + (backwards ? group.size() - 1 : 1)) % group.size()];
+}
+
+void UIRadioButton::OnKeyEvent(uint32_t scanCode, bool isDown) {
+    LAMBUI_LOGT(TAG, "'{}' OnKeyEvent({}, {})", GetName(), scanCode, isDown);
+    if (scanCode == ScanCode::Left || scanCode == ScanCode::Right || scanCode == ScanCode::Up || scanCode == ScanCode::Down) {
+        if (isDown && CanFocus()) SetChecked(true);
+    } else UICheckBox::OnKeyEvent(scanCode, isDown);
+}
+
 void UIRadioButton::Activate() {
     LAMBUI_LOGT(TAG, "'{}' Activate", GetName());
     SetChecked(true);

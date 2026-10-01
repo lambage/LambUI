@@ -43,6 +43,7 @@ public:
     void InjectMouseWheel(float xOffset, float yOffset);
     void InjectKeyEvent(uint32_t scanCode, bool isDown);
     void InjectCharacter(char32_t codepoint);
+    UIWidget* GetFocusedWidget() const { return m_focusedWidget; }
 
     // --- Core frame loop ---
     void Update(float deltaTime);
@@ -54,6 +55,9 @@ public:
     void FireGameEvent(const std::string& eventName, void* payload = nullptr);
 
 private:
+    void SetFocusedWidget(UIWidget* widget);
+    void MoveFocus(bool backwards);
+    void CollectFocusTargets(UIWidget& widget, std::vector<UIWidget*>& targets) const;
     UIWidget* HitTestRecursive(UIWidget& widget, float x, float y) const;
     void UpdateHover(float x, float y);
     UIWidget* HitTestInput(float x, float y) const;
@@ -94,6 +98,9 @@ private:
     UIWidget* m_pressedWidget = nullptr; // captures mouse-move for dragging (e.g. UISlider)
     MouseButton m_pressedButton = MouseButton::Left;
     UIWidget* m_focusedWidget = nullptr; // receives keyboard input (e.g. UIInputBox)
+    UIWidget* m_popupPreviousFocus = nullptr;
+    bool m_leftShift = false;
+    bool m_rightShift = false;
 };
 
 } // namespace LambUI

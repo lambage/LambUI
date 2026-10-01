@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, Lua/sol2 bindings) is fully implemented and builds
-clean. Tests pass (53 GoogleTest cases; optional Lua disabled in this build).
+clean. Tests pass (63 GoogleTest cases; optional Lua disabled in this build).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -98,7 +98,14 @@ See goals.txt for full architecture vision.
   - Four regressions added. Full MSVC/Ninja build and all 53 CTest cases pass.
     GL33/SDL3 desktop/compact native metrics/pixel/fallback checks pass;
     screenshots inspected. Lua remains disabled; compound labels use default.
-- [ ] Keyboard navigation (Tab/Shift-Tab focus cycling, arrow keys).
+- [x] Keyboard navigation (Tab/Shift-Tab focus cycling, arrow keys).
+  - Injected tree-order focus cycling skips hidden/disabled controls, reveals
+    scrolled targets, scopes popups, and restores focus on dismissal.
+  - Button activation; arrows for sliders, dropdowns, tabs, trees, menus,
+    and radio groups; UTF-8 input cursor movement/insertion/deletion.
+  - GL/GL33/SDL3 key mappings; ten new routing regressions. Full MSVC/Ninja
+    build and all 63 CTest cases pass; desktop/compact GL33/SDL3 native smoke
+    checks pass. Lua remains disabled; focus rings/blinking cursors stay separate.
 - [ ] Input text boxes should show a blinking cursor 
 - [ ] Margin/padding system (currently only anchor point + offset).
 - [ ] Min/max size constraints, aspect-ratio preservation, relative

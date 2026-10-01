@@ -171,7 +171,7 @@ text. `Update(deltaTime)` takes elapsed seconds and drives the default
 tooltips; they never capture mouse input. Text is measured through
 `ITextMeasurer`, with an approximate monospace fallback when none is supplied.
 Popup and tooltip bounds are clamped to the display. Labels are single-line;
-tabs divide the available width evenly. Nested submenus, keyboard navigation,
+tabs divide the available width evenly. Nested submenus,
 multiline tooltips, and Lua exposure of the new widgets are not implemented.
 
 ### Checkboxes, radio buttons, and windows
@@ -185,8 +185,43 @@ emit `OnValueChanged`.
 Radio buttons with the same `SetGroup(string)` and immediate parent are
 exclusive; the empty group name is also a group. Clicking an already selected
 radio keeps it selected. Programmatic `SetChecked(false)` can clear a group.
-All peer states are updated before selection callbacks run. Keyboard focus
-cycling and arrow-key group navigation remain future work.
+All peer states are updated before selection callbacks run. Arrow keys move
+focus and selection through visible, enabled members of the same group.
+
+### Keyboard navigation
+
+Translate platform keys to `LambUI::ScanCode` before calling
+`UIManager::InjectKeyEvent(code, isDown)`. Forward both press and release,
+including `LeftShift` and `RightShift`; text still arrives separately through
+`InjectCharacter`. GL, GL33, and SDL3 examples provide these mappings.
+
+- Tab/Shift-Tab wrap forward/backward in logical tree order. Hidden subtrees,
+  disabled checkboxes/radios, and nonfocusable widgets are skipped. Focused
+  descendants of scroll containers are scrolled into view.
+- `GetFocusedWidget()` exposes current focus. Custom widgets implement
+  `IFocusable`; `CanFocus()` controls eligibility and `GetFocusNeighbor()`
+  optionally supplies directional targets. `SetKeyboardEnabled(false)` opts
+  a widget out without disabling its mouse input or its children's keyboard input.
+- Space/Enter activate buttons and checkboxes on matching key release.
+  Focus loss cancels pending activation. Slider arrows adjust by 1% of its
+  range; Home/End select its endpoints.
+- Dropdown Up/Down and Home/End select options. Space/Enter toggle the list,
+  Escape closes it, and leaving focus closes it. Tabs use arrows to switch
+  pages, with Home/End selecting the first/last page.
+- Tree Up/Down select visible rows; Right expands or enters a branch; Left
+  collapses or selects its parent. Home/End select endpoints; Space/Enter
+  toggle expansion. Selected rows scroll into view.
+- Menu bars use Left/Right to choose headers and Down/Enter/Space to open.
+  Popup Up/Down and Tab cycle enabled items, Home/End choose endpoints, and
+  Escape dismisses. Left/Right switches open menu-bar menus. Popups contain
+  keyboard focus and restore the previous eligible widget on dismissal.
+- Input Left/Right move by UTF-8 code point; Home/End move to the beginning/end.
+  Insertion, Backspace, and Delete operate at that position. Cursor positions
+  exposed by `GetCursorPosition()` are UTF-8 byte offsets.
+
+Menu rows show keyboard selection using `UIButton::SetKeyboardFocusColor`.
+General focus rings, blinking input cursors, selection, and clipboard support
+remain separate backlog items.
 
 `UIWindow` is a retained widget, not a native OS window. Add application
 widgets beneath `GetContent()` to keep them clipped inside its client area.

@@ -6,7 +6,33 @@ namespace {
 constexpr const char* TAG = "UIControl";
 } // namespace
 
-UIControl::UIControl(std::string name) : UIWidget(std::move(name)) {}
+UIControl::UIControl(std::string name) : UIWidget(std::move(name)) {
+    LAMBUI_LOGT(TAG, "constructed '{}'", GetName());
+}
+
+void UIControl::OnFocusGained() {
+    LAMBUI_LOGT(TAG, "'{}' OnFocusGained", GetName());
+    m_keyboardFocused = true;
+    MarkDirty();
+}
+
+void UIControl::OnFocusLost() {
+    LAMBUI_LOGT(TAG, "'{}' OnFocusLost", GetName());
+    m_keyboardFocused = false;
+    m_activationKey = 0;
+    MarkDirty();
+}
+
+void UIControl::OnKeyEvent(uint32_t scanCode, bool isDown) {
+    LAMBUI_LOGT(TAG, "'{}' OnKeyEvent({}, {})", GetName(), scanCode, isDown);
+    if (!m_keyboardFocused || !CanFocus() || (scanCode != ScanCode::Enter && scanCode != ScanCode::Space)) return;
+    if (isDown) {
+        if (!m_activationKey) m_activationKey = scanCode;
+    } else if (m_activationKey == scanCode) {
+        m_activationKey = 0;
+        FireEvent(UIEventData{UIEventType::OnClick});
+    }
+}
 
 void UIControl::OnEvent(const UIEventData& data) {
     const ControlState previous = m_state;

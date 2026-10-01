@@ -22,6 +22,7 @@ public:
     void SetContentSize(float width, float height);
 
     void SetScrollOffset(float x, float y);
+    void EnsureVisible(const UIRect& rect);
     float GetScrollX() const { return m_scrollX; }
     float GetScrollY() const { return m_scrollY; }
     bool ClipsChildren() const override { return true; }

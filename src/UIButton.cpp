@@ -2,10 +2,21 @@
 
 namespace LambUI {
 
-UIButton::UIButton(std::string name) : UIControl(std::move(name)) {}
+namespace { constexpr const char* TAG = "UIButton"; }
+
+UIButton::UIButton(std::string name) : UIControl(std::move(name)) {
+    LAMBUI_LOGT(TAG, "constructed '{}'", GetName());
+}
+
+void UIButton::SetKeyboardFocusColor(uint32_t color) {
+    LAMBUI_LOGT(TAG, "'{}' SetKeyboardFocusColor({})", GetName(), color);
+    m_focusColor = color;
+    m_hasFocusColor = true;
+    MarkDirty();
+}
 
 void UIButton::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
-    uint32_t color = m_normalColor;
+    uint32_t color = HasKeyboardFocus() && m_hasFocusColor ? m_focusColor : m_normalColor;
     switch (GetState()) {
         case ControlState::Hovered: color = m_hoverColor; break;
         case ControlState::Pressed: color = m_pressedColor; break;

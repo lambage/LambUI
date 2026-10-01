@@ -93,6 +93,25 @@ int main() {
     glfwSetMouseButtonCallback(window, MouseButtonCallback);
     glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
     glfwSetCharCallback(window, CharCallback);
+    glfwSetKeyCallback(window, [](GLFWwindow*, int key, int, int action, int) {
+        LAMBUI_LOGT(TAG, "Key({}, {})", key, action);
+        uint32_t scanCode = 0;
+        if (key == GLFW_KEY_BACKSPACE) scanCode = ScanCode::Backspace;
+        else if (key == GLFW_KEY_ENTER || key == GLFW_KEY_KP_ENTER) scanCode = ScanCode::Enter;
+        else if (key == GLFW_KEY_ESCAPE) scanCode = ScanCode::Escape;
+        else if (key == GLFW_KEY_SPACE) scanCode = ScanCode::Space;
+        else if (key == GLFW_KEY_TAB) scanCode = ScanCode::Tab;
+        else if (key == GLFW_KEY_LEFT_SHIFT) scanCode = ScanCode::LeftShift;
+        else if (key == GLFW_KEY_RIGHT_SHIFT) scanCode = ScanCode::RightShift;
+        else if (key == GLFW_KEY_LEFT) scanCode = ScanCode::Left;
+        else if (key == GLFW_KEY_RIGHT) scanCode = ScanCode::Right;
+        else if (key == GLFW_KEY_UP) scanCode = ScanCode::Up;
+        else if (key == GLFW_KEY_DOWN) scanCode = ScanCode::Down;
+        else if (key == GLFW_KEY_HOME) scanCode = ScanCode::Home;
+        else if (key == GLFW_KEY_END) scanCode = ScanCode::End;
+        else if (key == GLFW_KEY_DELETE) scanCode = ScanCode::Delete;
+        if (g_uiManager && scanCode) g_uiManager->InjectKeyEvent(scanCode, action != GLFW_RELEASE);
+    });
     glfwSetScrollCallback(window, [](GLFWwindow*, double xOffset, double yOffset) {
         LAMBUI_LOGT(TAG, "Scroll({}, {})", xOffset, yOffset);
         if (g_uiManager) {

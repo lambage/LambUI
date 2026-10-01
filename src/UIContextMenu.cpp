@@ -23,6 +23,7 @@ void UIContextMenu::SetItems(std::vector<UIMenuItem> items) {
     while (m_rows.size() < m_items.size()) {
         const size_t index = m_rows.size();
         auto* button = GetContent()->CreateChild<UIButton>(GetName() + "_Item" + std::to_string(index));
+        button->SetKeyboardFocusColor(0x606060FFu);
         button->SetPoint(AnchorPoint::TopLeft, GetContent(), AnchorPoint::TopLeft, 0.0f, static_cast<float>(index) * RowHeight);
         button->RegisterCallback(UIEventType::OnClick, [this, index](const UIEventData& data) {
             LAMBUI_LOGT(TAG, "'{}' item click {}", GetName(), index);

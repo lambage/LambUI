@@ -26,6 +26,16 @@ void UISlider::SetValue(float value) {
     }
 }
 
+void UISlider::OnKeyEvent(uint32_t scanCode, bool isDown) {
+    LAMBUI_LOGT(TAG, "'{}' OnKeyEvent({}, {})", GetName(), scanCode, isDown);
+    if (!isDown) return;
+    const float step = (m_maxValue - m_minValue) / 100.0f;
+    if (scanCode == ScanCode::Right || scanCode == ScanCode::Up) SetValue(m_value + step);
+    else if (scanCode == ScanCode::Left || scanCode == ScanCode::Down) SetValue(m_value - step);
+    else if (scanCode == ScanCode::Home) SetValue(m_minValue);
+    else if (scanCode == ScanCode::End) SetValue(m_maxValue);
+}
+
 void UISlider::OnDrag(float mouseX, float mouseY) {
     const UIRect& rect = GetComputedRect();
     const float range = m_maxValue - m_minValue;

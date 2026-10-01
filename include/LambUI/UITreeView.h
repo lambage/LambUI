@@ -4,7 +4,7 @@
 
 namespace LambUI {
 
-class LAMBUI_API UITreeView : public UIScrollContainer {
+class LAMBUI_API UITreeView : public UIScrollContainer, public IFocusable {
 public:
     using NodeId = size_t;
     static constexpr NodeId RootNode = 0;
@@ -18,6 +18,9 @@ public:
     void SetSelectedNode(NodeId node);
     NodeId GetSelectedNode() const { return m_selectedNode; }
     size_t GetVisibleNodeCount() const { return m_visibleRows.size(); }
+    bool CanFocus() const override { return IsMouseEnabled(); }
+    void OnCharacter(char32_t) override {}
+    void OnKeyEvent(uint32_t scanCode, bool isDown) override;
 
 protected:
     void OnLayoutChanged() override;

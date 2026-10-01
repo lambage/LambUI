@@ -17,6 +17,7 @@ public:
     void SetMinMaxValues(float minValue, float maxValue);
     void SetValue(float value);
     float GetValue() const { return m_value; }
+    void OnKeyEvent(uint32_t scanCode, bool isDown) override;
 
     // IDraggable: called by UIManager while this widget has captured the mouse.
     void OnDrag(float mouseX, float mouseY) override;

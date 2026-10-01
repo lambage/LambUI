@@ -189,6 +189,20 @@ void UIScrollContainer::ApplyScrollOffset() {
     m_content->SetPoint(AnchorPoint::TopLeft, this, AnchorPoint::TopLeft, -m_scrollX, -m_scrollY);
 }
 
+void UIScrollContainer::EnsureVisible(const UIRect& target) {
+    LAMBUI_LOGT(TAG, "'{}' EnsureVisible({}, {}, {}, {})", GetName(), target.x, target.y, target.width, target.height);
+    const auto& viewport = GetComputedRect();
+    const float width = std::max(0.0f, viewport.width - (m_scrollbarsEnabled && m_contentHeight > viewport.height ? 12.0f : 0.0f));
+    const float height = std::max(0.0f, viewport.height - (m_scrollbarsEnabled && m_contentWidth > viewport.width ? 12.0f : 0.0f));
+    float offsetX = m_scrollX;
+    float offsetY = m_scrollY;
+    if (target.x < viewport.x) offsetX += target.x - viewport.x;
+    else if (target.x + target.width > viewport.x + width) offsetX += target.x + std::min(target.width, width) - viewport.x - width;
+    if (target.y < viewport.y) offsetY += target.y - viewport.y;
+    else if (target.y + target.height > viewport.y + height) offsetY += target.y + std::min(target.height, height) - viewport.y - height;
+    SetScrollOffset(offsetX, offsetY);
+}
+
 void UIScrollContainer::OnLayoutChanged() {
     LAMBUI_LOGT(TAG, "'{}' OnLayoutChanged", GetName());
     ApplyScrollOffset();

@@ -26,7 +26,9 @@ void AppendUtf8(std::string& out, char32_t codepoint) {
 }
 } // namespace
 
-UIInputBox::UIInputBox(std::string name) : UIControl(std::move(name)) {}
+UIInputBox::UIInputBox(std::string name) : UIControl(std::move(name)) {
+    LAMBUI_LOGT(TAG, "constructed '{}'", GetName());
+}
 
 void UIInputBox::OnFocusGained() {
     LAMBUI_LOGT(TAG, "'{}' OnFocusGained", GetName());
@@ -41,22 +43,42 @@ void UIInputBox::OnFocusLost() {
 }
 
 void UIInputBox::OnKeyEvent(uint32_t scanCode, bool isDown) {
-    if (!isDown) return;
+    LAMBUI_LOGT(TAG, "'{}' OnKeyEvent({}, {})", GetName(), scanCode, isDown);
+    if (!isDown || !m_isFocused) return;
     if (scanCode == ScanCode::Backspace) Backspace();
     else if (scanCode == ScanCode::Enter) SubmitEnter();
+    else if (scanCode == ScanCode::Home) m_cursor = 0;
+    else if (scanCode == ScanCode::End) m_cursor = m_text.size();
+    else if (scanCode == ScanCode::Left && m_cursor > 0) {
+        do { --m_cursor; } while (m_cursor > 0 && (static_cast<unsigned char>(m_text[m_cursor]) & 0xC0) == 0x80);
+    } else if (scanCode == ScanCode::Right && m_cursor < m_text.size()) {
+        do { ++m_cursor; } while (m_cursor < m_text.size() && (static_cast<unsigned char>(m_text[m_cursor]) & 0xC0) == 0x80);
+    } else if (scanCode == ScanCode::Delete && m_cursor < m_text.size()) {
+        size_t end = m_cursor + 1;
+        while (end < m_text.size() && (static_cast<unsigned char>(m_text[end]) & 0xC0) == 0x80) ++end;
+        m_text.erase(m_cursor, end - m_cursor);
+        FireEvent(UIEventData{UIEventType::OnTextChanged});
+    }
+    MarkDirty();
 }
 
 void UIInputBox::AppendCharacter(char32_t codepoint) {
-    if (!m_isFocused) return;
-    AppendUtf8(m_text, codepoint);
+    if (!m_isFocused || codepoint < 32 || codepoint == 127 || codepoint > 0x10FFFF ||
+        (codepoint >= 0xD800 && codepoint <= 0xDFFF)) return;
+    std::string encoded;
+    AppendUtf8(encoded, codepoint);
+    m_text.insert(m_cursor, encoded);
+    m_cursor += encoded.size();
     LAMBUI_LOGT(TAG, "'{}' text -> '{}'", GetName(), m_text);
     MarkDirty();
     FireEvent(UIEventData{UIEventType::OnTextChanged});
 }
 
 void UIInputBox::Backspace() {
-    if (!m_isFocused || m_text.empty()) return;
-    m_text.pop_back();
+    if (!m_isFocused || m_cursor == 0) return;
+    const size_t end = m_cursor;
+    do { --m_cursor; } while (m_cursor > 0 && (static_cast<unsigned char>(m_text[m_cursor]) & 0xC0) == 0x80);
+    m_text.erase(m_cursor, end - m_cursor);
     LAMBUI_LOGT(TAG, "'{}' text -> '{}'", GetName(), m_text);
     MarkDirty();
     FireEvent(UIEventData{UIEventType::OnTextChanged});
@@ -71,6 +93,7 @@ void UIInputBox::SubmitEnter() {
 void UIInputBox::SetText(const std::string& text) {
     LAMBUI_LOGT(TAG, "'{}' SetText('{}')", GetName(), text);
     m_text = text;
+    m_cursor = m_text.size();
     MarkDirty();
 }
 

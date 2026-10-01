@@ -10,6 +10,8 @@ public:
     ~UIRadioButton() override;
     void SetGroup(std::string group);
     const std::string& GetGroup() const { return m_group; }
+    UIWidget* GetFocusNeighbor(uint32_t scanCode) const override;
+    void OnKeyEvent(uint32_t scanCode, bool isDown) override;
     void SetChecked(bool checked) override;
 
 protected:
