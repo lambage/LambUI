@@ -40,6 +40,7 @@ public:
     void OnDrag(float mouseX, float mouseY) override;
 
     // IFocusable
+    bool CanUseDialogDefault() const override { return !m_multiline; }
     void OnFocusGained() override;
     void OnFocusLost() override;
     void OnCharacter(char32_t codepoint) override { AppendCharacter(codepoint); }

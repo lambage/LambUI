@@ -4,6 +4,8 @@
 #include "LambUI/UIScrollContainer.h"
 #include "LambUI/UIContextMenu.h"
 #include "LambUI/UIInputBox.h"
+#include "LambUI/UIButton.h"
+#include "LambUI/UIWindow.h"
 #include <algorithm>
 #include <cmath>
 
@@ -335,6 +337,7 @@ void UIManager::InjectMouseWheel(float xOffset, float yOffset) {
 
 void UIManager::SetFocusedWidget(UIWidget* widget) {
     if (widget == m_focusedWidget) return;
+    CancelDialogDefaultPress();
     LAMBUI_LOGT(TAG, "focus '{}' -> '{}'", m_focusedWidget ? m_focusedWidget->GetName() : "<none>",
                 widget ? widget->GetName() : "<none>");
     if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) focusable->OnFocusLost();
@@ -357,6 +360,54 @@ void UIManager::SetFocusedWidget(UIWidget* widget) {
             m_overlayRoot->ResolveLayout();
         }
     }
+}
+
+bool UIManager::SetDefaultButton(UIWidget& dialog, UIButton* button) {
+    LAMBUI_LOGT(TAG, "SetDefaultButton('{}', '{}')", dialog.GetName(), button ? button->GetName() : "<none>");
+    if (!IsWithin(&dialog, m_root.get()) || IsWithin(&dialog, m_overlayRoot.get()) ||
+        (button && (!IsWithin(button, &dialog) || button == &dialog))) return false;
+    for (auto* ancestor = button ? button->GetParent() : nullptr;
+         ancestor && ancestor != &dialog; ancestor = ancestor->GetParent()) {
+        if (dynamic_cast<UIWindow*>(ancestor)) return false;
+    }
+    const auto current = m_defaultButtons.find(&dialog);
+    if (current != m_defaultButtons.end() && current->second == button) return true;
+    CancelDialogDefaultPress();
+    m_defaultButtons[&dialog] = button;
+    return true;
+}
+
+UIButton* UIManager::GetDefaultButton(const UIWidget& dialog) const {
+    const auto current = m_defaultButtons.find(&dialog);
+    return current == m_defaultButtons.end() ? nullptr : current->second;
+}
+
+UIButton* UIManager::DialogDefaultTarget() const {
+    if (m_activePopup || m_leftShift || m_rightShift || m_leftControl || m_rightControl ||
+        !CanFocusWidget(m_focusedWidget)) return nullptr;
+    auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget);
+    if (!focusable->CanUseDialogDefault()) return nullptr;
+    for (auto* scope = m_focusedWidget; scope; scope = scope->GetParent()) {
+        const auto current = m_defaultButtons.find(scope);
+        if (current != m_defaultButtons.end()) {
+            auto* button = current->second;
+            return CanFocusWidget(button) ? button : nullptr;
+        }
+        if (dynamic_cast<UIWindow*>(scope)) return nullptr;
+    }
+    return nullptr;
+}
+
+void UIManager::CancelDialogDefaultPress() {
+    if (!m_defaultPressedButton) return;
+    LAMBUI_LOGT(TAG, "CancelDialogDefaultPress('{}')", m_defaultPressedButton->GetName());
+    m_defaultPressedButton->SetDialogDefaultPressed(false);
+    m_defaultPressedButton = nullptr;
+}
+
+void UIManager::ValidateDialogDefaultPress() {
+    if (m_defaultPressedButton && DialogDefaultTarget() != m_defaultPressedButton)
+        CancelDialogDefaultPress();
 }
 
 void UIManager::CollectFocusTargets(UIWidget& widget, std::vector<UIWidget*>& targets) const {
@@ -388,17 +439,29 @@ void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
     ResetTooltip();
     if (scanCode == ScanCode::LeftShift || scanCode == ScanCode::RightShift) {
         (scanCode == ScanCode::LeftShift ? m_leftShift : m_rightShift) = isDown;
+        ValidateDialogDefaultPress();
         if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget))
             input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
         return;
     }
     if (scanCode == ScanCode::LeftControl || scanCode == ScanCode::RightControl) {
         (scanCode == ScanCode::LeftControl ? m_leftControl : m_rightControl) = isDown;
+        ValidateDialogDefaultPress();
         if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget))
             input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
         return;
     }
     if (!CanFocusWidget(m_focusedWidget)) SetFocusedWidget(nullptr);
+    ValidateDialogDefaultPress();
+    if (scanCode == ScanCode::Enter && m_defaultEnterDown) {
+        if (!isDown) {
+            auto* button = m_defaultPressedButton;
+            CancelDialogDefaultPress();
+            m_defaultEnterDown = false;
+            if (button) button->FireEvent(UIEventData{UIEventType::OnClick});
+        }
+        return;
+    }
     if (scanCode == ScanCode::Tab) {
         if (isDown) MoveFocus(m_leftShift || m_rightShift);
         return;
@@ -432,6 +495,15 @@ void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
         }
         if (!IsWithin(m_focusedWidget, PopupScope())) return;
     }
+    if (scanCode == ScanCode::Enter && isDown) {
+        if (auto* button = DialogDefaultTarget()) {
+            LAMBUI_LOGT(TAG, "dialog default press '{}'", button->GetName());
+            m_defaultEnterDown = true;
+            m_defaultPressedButton = button;
+            button->SetDialogDefaultPressed(true);
+            return;
+        }
+    }
     if (!IsEffectivelyVisible(m_focusedWidget)) return;
     if (isDown) {
         if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) {
@@ -458,6 +530,7 @@ void UIManager::InjectCharacter(char32_t codepoint) {
 void UIManager::Update(float deltaTime) {
     LAMBUI_LOGT(TAG, "Update(deltaTime={})", deltaTime);
     if (!CanFocusWidget(m_focusedWidget)) SetFocusedWidget(nullptr);
+    ValidateDialogDefaultPress();
     m_root->ResolveLayout();
     if (m_activePopup && (!m_activePopup->IsVisible() || (m_popupOwner && !IsEffectivelyVisible(m_popupOwner)))) ClosePopup();
     m_overlayRoot->ResolveLayout();
@@ -488,6 +561,7 @@ void UIManager::Update(float deltaTime) {
 void UIManager::Render() {
     LAMBUI_LOGT(TAG, "Render");
     if (!CanFocusWidget(m_focusedWidget)) SetFocusedWidget(nullptr);
+    ValidateDialogDefaultPress();
     m_commandBucket.clear();
     m_root->GenerateRenderCommandsWithFocus(m_commandBucket);
     if (m_activePopup) m_activePopup->GenerateRenderCommandsWithFocus(m_commandBucket);

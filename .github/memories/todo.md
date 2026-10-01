@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, manual Lua C API bindings) is fully implemented and
-builds as C++14. Tests pass (112 GoogleTest cases; optional Lua enabled).
+builds as C++14. Tests pass (120 GoogleTest cases; optional Lua enabled).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -265,9 +265,16 @@ See goals.txt for full architecture vision.
   - Four regressions; full MSVC/Ninja build and all 112 CTest cases pass (Lua
     enabled). GL33/SDL3/legacy GL desktop/compact native smoke passes; SDL3
     focus/pressed captures inspected. README and shared showcase updated.
-- [ ] Explicit dialog-default button selection and Enter routing.
-  - Split from focus visualization: Enter currently targets the focused control;
-    no implicit default action is introduced by drawing a focus ring.
+- [x] Explicit dialog-default button selection and Enter routing.
+  - UIManager SetDefaultButton/GetDefaultButton register a descendant button
+    per dialog; nearest scope wins, cleared scopes and windows block outer defaults.
+  - Single-line inputs route unmodified Enter to the eligible default, retaining
+    focus and showing pressed feedback until one release-time OnClick. Focus,
+    registration, popup, and eligibility changes cancel pending activation.
+  - Multiline inputs and other controls retain Enter; custom IFocusable widgets
+    can opt in. Hidden/disabled defaults preserve normal input submission.
+  - Eight regressions; full MSVC/Ninja build and all 120 CTest cases pass (Lua
+    enabled). README updated; native visual smoke not run. Core HAL unchanged.
 - [ ] Copy/paste and opt-in selection for static text labels.
 - [ ] Rendering perf: batching/instancing, texture atlas management,
       command buffer dirty-tracking (currently one draw call per command).

@@ -14,6 +14,7 @@
 namespace LambUI {
 
 class UITooltip;
+class UIButton;
 
 // Root context: owns the widget tree, drives layout resolution, performs
 // input hit-testing/bubbling, and flushes render commands to the backend.
@@ -44,6 +45,8 @@ public:
     void InjectKeyEvent(uint32_t scanCode, bool isDown);
     void InjectCharacter(char32_t codepoint);
     UIWidget* GetFocusedWidget() const { return m_focusedWidget; }
+    bool SetDefaultButton(UIWidget& dialog, UIButton* button);
+    UIButton* GetDefaultButton(const UIWidget& dialog) const;
 
     // --- Core frame loop ---
     void Update(float deltaTime);
@@ -70,6 +73,9 @@ private:
     UIWidget* PopupScope() const;
     UIWidget* HitTestPopups(float x, float y) const;
     void SetFocusedWidget(UIWidget* widget);
+    UIButton* DialogDefaultTarget() const;
+    void CancelDialogDefaultPress();
+    void ValidateDialogDefaultPress();
     void MoveFocus(bool backwards);
     void CollectFocusTargets(UIWidget& widget, std::vector<UIWidget*>& targets) const;
     UIWidget* HitTestRecursive(UIWidget& widget, float x, float y) const;
@@ -114,6 +120,9 @@ private:
     MouseButton m_pressedButton = MouseButton::Left;
     UIWidget* m_focusedWidget = nullptr; // receives keyboard input (e.g. UIInputBox)
     UIWidget* m_popupPreviousFocus = nullptr;
+    std::map<const UIWidget*, UIButton*> m_defaultButtons;
+    UIButton* m_defaultPressedButton = nullptr;
+    bool m_defaultEnterDown = false;
     bool m_leftShift = false;
     bool m_rightShift = false;
     bool m_leftControl = false;

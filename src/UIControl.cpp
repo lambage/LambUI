@@ -16,6 +16,13 @@ void UIControl::OnFocusGained() {
     MarkDirty();
 }
 
+void UIControl::SetDialogDefaultPressed(bool pressed) {
+    if (m_dialogDefaultPressed == pressed) return;
+    LAMBUI_LOGT(TAG, "'{}' SetDialogDefaultPressed({})", GetName(), pressed);
+    m_dialogDefaultPressed = pressed;
+    MarkDirty();
+}
+
 void UIControl::OnFocusLost() {
     LAMBUI_LOGT(TAG, "'{}' OnFocusLost", GetName());
     m_keyboardFocused = false;

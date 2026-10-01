@@ -21,6 +21,7 @@ class LAMBUI_API IFocusable {
 public:
     virtual ~IFocusable() = default;
     virtual bool CanFocus() const { return true; }
+    virtual bool CanUseDialogDefault() const { return false; }
     virtual UIWidget* GetFocusNeighbor(uint32_t) const { return nullptr; }
     virtual void OnFocusGained() {}
     virtual void OnFocusLost() {}

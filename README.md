@@ -302,8 +302,38 @@ for custom focus rendering, or `SetFocusRingColor(rgba)` to change its inner col
 Custom render overrides continue using `GenerateChildRenderCommands` or
 `AppendChildRenderCommands` so children retain focus decoration.
 Buttons show their pressed color while Enter/Space is held; releasing the matching
-key activates once, and focus loss cancels. Enter targets the focused control,
-not an implicit dialog-default button. Clipboard support remains backlog work.
+key activates once, and focus loss cancels. No default button is chosen implicitly.
+Clipboard support remains backlog work.
+
+Register a dialog's explicit action with
+`manager.SetDefaultButton(dialog, button)`; `GetDefaultButton(dialog)` returns
+the registered `UIButton*`. A dialog can be any widget in the manager's normal
+tree, including a `UIWindow`. Registration returns false without changing the
+existing choice for foreign widgets, buttons outside the dialog, or buttons
+inside a nested window. The button must be a strict descendant of the dialog.
+Passing `nullptr` clears the choice but retains a scope boundary, blocking outer
+defaults. The nearest registered ancestor of the focused widget wins; an
+unregistered window also blocks defaults outside that window.
+
+Unmodified Enter in a single-line input uses an eligible default instead of
+`OnEnterPressed`, including in read-only inputs. It shows the button's pressed
+color without moving focus, then fires one bubbling `OnClick` on matching release.
+Repeats are ignored. Focus changes, changed registrations, popup opening, or lost
+eligibility cancel the pending action until release. Eligibility is checked on
+input, update, and render; hidden ancestors and mouse/keyboard-disabled buttons
+are excluded. With no eligible default, normal input submission is unchanged.
+
+Multiline inputs, focused buttons, and other controls keep their own Enter
+behavior. Space, Shift/Control+Enter, popups, and events without keyboard focus
+never invoke a dialog default. Custom `IFocusable` widgets can opt into this
+routing by overriding `CanUseDialogDefault()` to return true; its default is false.
+
+```cpp
+auto* dialog = manager.GetRoot().CreateChild<UIWidget>("SaveDialog");
+auto* nameField = dialog->CreateChild<UIInputBox>("Name");
+auto* save = dialog->CreateChild<UIButton>("Save");
+manager.SetDefaultButton(*dialog, save);
+```
 
 `UIWindow` is a retained widget, not a native OS window. Add application
 widgets beneath `GetContent()` to keep them clipped inside its client area.

@@ -9,6 +9,7 @@
 #include "LambUI/UIMenuBar.h"
 #include "LambUI/UIRadioButton.h"
 #include "LambUI/UITextureWidget.h"
+#include "LambUI/UIWindow.h"
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <memory>
@@ -24,6 +25,319 @@ public:
     void SubmitRenderCommands(const std::vector<UIRenderCommand>& bucket) override { commands = bucket; }
 };
 } // namespace
+
+TEST(DialogDefault, SingleLineInputRoutesPairedEnterWithoutMovingFocus) {
+    auto renderer = std::make_shared<NullRenderer>();
+    UIManager manager(renderer);
+    auto* dialog = manager.GetRoot().CreateChild<UIWidget>("Dialog");
+    auto* input = dialog->CreateChild<UIInputBox>("Input");
+    auto* accept = dialog->CreateChild<UIButton>("Accept");
+    accept->SetSize(100, 30);
+    accept->SetPoint(AnchorPoint::TopLeft, dialog, AnchorPoint::TopLeft);
+    accept->SetPressedColor(0x123456FFu);
+    int clicks = 0;
+    int submissions = 0;
+    accept->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    input->RegisterCallback(UIEventType::OnEnterPressed, [&](const UIEventData&) { ++submissions; });
+    ASSERT_TRUE(manager.SetDefaultButton(*dialog, accept));
+    EXPECT_EQ(manager.GetDefaultButton(*dialog), accept);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 0);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.Render();
+    EXPECT_EQ(std::count_if(renderer->commands.begin(), renderer->commands.end(),
+        [](const UIRenderCommand& command) { return command.color == 0x123456FFu; }), 1);
+    EXPECT_EQ(manager.GetFocusedWidget(), input);
+    EXPECT_TRUE(input->IsFocused());
+    EXPECT_FALSE(accept->HasKeyboardFocus());
+    EXPECT_EQ(clicks, 0);
+    EXPECT_EQ(submissions, 0);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 1);
+    EXPECT_FALSE(accept->IsKeyboardPressed());
+}
+
+TEST(DialogDefault, NearestScopeWinsAndClearingBlocksOuterDefaults) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* outer = manager.GetRoot().CreateChild<UIWidget>("Outer");
+    auto* inner = outer->CreateChild<UIWidget>("Inner");
+    auto* input = inner->CreateChild<UIInputBox>("Input");
+    auto* innerButton = inner->CreateChild<UIButton>("InnerAccept");
+    auto* outerButton = outer->CreateChild<UIButton>("OuterAccept");
+    int innerClicks = 0;
+    int outerClicks = 0;
+    int submissions = 0;
+    innerButton->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++innerClicks; });
+    outerButton->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++outerClicks; });
+    input->RegisterCallback(UIEventType::OnEnterPressed, [&](const UIEventData&) { ++submissions; });
+    const auto enter = [&] {
+        manager.InjectKeyEvent(ScanCode::Enter, true);
+        manager.InjectKeyEvent(ScanCode::Enter, false);
+    };
+    ASSERT_TRUE(manager.SetDefaultButton(*outer, outerButton));
+    enter();
+    EXPECT_EQ(outerClicks, 0);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), input);
+    enter();
+    EXPECT_EQ(outerClicks, 1);
+    ASSERT_TRUE(manager.SetDefaultButton(*inner, innerButton));
+    enter();
+    EXPECT_EQ(innerClicks, 1);
+    innerButton->SetKeyboardEnabled(false);
+    enter();
+    EXPECT_EQ(submissions, 1);
+    EXPECT_EQ(outerClicks, 1);
+    ASSERT_TRUE(manager.SetDefaultButton(*inner, nullptr));
+    EXPECT_EQ(manager.GetDefaultButton(*inner), nullptr);
+    enter();
+    EXPECT_EQ(submissions, 2);
+    EXPECT_EQ(innerClicks, 1);
+    EXPECT_EQ(outerClicks, 1);
+}
+
+TEST(DialogDefault, RegistrationRejectsForeignWidgetsAndWindowsIsolateDefaults) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    UIManager foreign(std::make_shared<NullRenderer>());
+    auto* window = manager.GetRoot().CreateChild<UIWindow>("Window");
+    auto* input = window->GetContent()->CreateChild<UIInputBox>("Input");
+    auto* accept = window->GetContent()->CreateChild<UIButton>("Accept");
+    auto* sibling = manager.GetRoot().CreateChild<UIWindow>("Sibling");
+    auto* siblingInput = sibling->GetContent()->CreateChild<UIInputBox>("SiblingInput");
+    auto* rootButton = manager.GetRoot().CreateChild<UIButton>("RootAccept");
+    auto* foreignButton = foreign.GetRoot().CreateChild<UIButton>("Foreign");
+    int clicks = 0;
+    int rootClicks = 0;
+    int submissions = 0;
+    accept->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    rootButton->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++rootClicks; });
+    input->RegisterCallback(UIEventType::OnEnterPressed, [&](const UIEventData&) { ++submissions; });
+    siblingInput->RegisterCallback(UIEventType::OnEnterPressed, [&](const UIEventData&) { ++submissions; });
+    const auto enter = [&] {
+        manager.InjectKeyEvent(ScanCode::Enter, true);
+        manager.InjectKeyEvent(ScanCode::Enter, false);
+    };
+    ASSERT_TRUE(manager.SetDefaultButton(manager.GetRoot(), rootButton));
+    EXPECT_FALSE(manager.SetDefaultButton(manager.GetRoot(), accept));
+    EXPECT_FALSE(manager.SetDefaultButton(*window, foreignButton));
+    EXPECT_FALSE(manager.SetDefaultButton(foreign.GetRoot(), foreignButton));
+    EXPECT_FALSE(manager.SetDefaultButton(*window, rootButton));
+    EXPECT_FALSE(manager.SetDefaultButton(*accept, accept));
+    EXPECT_FALSE(manager.SetDefaultButton(manager.GetOverlayRoot(), nullptr));
+    EXPECT_EQ(manager.GetDefaultButton(manager.GetRoot()), rootButton);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), input);
+    enter();
+    EXPECT_EQ(submissions, 1);
+    EXPECT_EQ(rootClicks, 0);
+    ASSERT_TRUE(manager.SetDefaultButton(*window, accept));
+    enter();
+    EXPECT_EQ(clicks, 1);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), siblingInput);
+    enter();
+    EXPECT_EQ(clicks, 1);
+    EXPECT_EQ(rootClicks, 0);
+    EXPECT_EQ(submissions, 2);
+}
+
+TEST(DialogDefault, UnavailableButtonsFallBackToInputSubmission) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    auto* buttons = manager.GetRoot().CreateChild<UIWidget>("Buttons");
+    auto* accept = buttons->CreateChild<UIButton>("Accept");
+    int clicks = 0;
+    int submissions = 0;
+    accept->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    input->RegisterCallback(UIEventType::OnEnterPressed, [&](const UIEventData&) { ++submissions; });
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(submissions, 1);
+    ASSERT_TRUE(manager.SetDefaultButton(manager.GetRoot(), accept));
+    for (int unavailable = 0; unavailable < 4; ++unavailable) {
+        accept->SetVisible(unavailable != 0);
+        buttons->SetVisible(unavailable != 1);
+        accept->SetMouseEnabled(unavailable != 2);
+        accept->SetKeyboardEnabled(unavailable != 3);
+        manager.InjectKeyEvent(ScanCode::Enter, true);
+        manager.InjectKeyEvent(ScanCode::Enter, false);
+        EXPECT_EQ(submissions, unavailable + 2);
+        EXPECT_EQ(clicks, 0);
+    }
+    accept->SetKeyboardEnabled(true);
+    input->SetEditingEnabled(false);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 1);
+    EXPECT_EQ(submissions, 5);
+}
+
+TEST(DialogDefault, MultilineControlsAndModifiedEnterKeepTheirExistingBehavior) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    auto* checkbox = manager.GetRoot().CreateChild<UICheckBox>("Checkbox");
+    auto* dropdown = manager.GetRoot().CreateChild<UIDropDownBox>("Dropdown");
+    auto* other = manager.GetRoot().CreateChild<UIButton>("Other");
+    auto* accept = manager.GetRoot().CreateChild<UIButton>("Accept");
+    dropdown->SetOptions({"First", "Second"});
+    int clicks = 0;
+    int otherClicks = 0;
+    int submissions = 0;
+    accept->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    other->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++otherClicks; });
+    input->RegisterCallback(UIEventType::OnEnterPressed, [&](const UIEventData&) { ++submissions; });
+    ASSERT_TRUE(manager.SetDefaultButton(manager.GetRoot(), accept));
+    const auto enter = [&] {
+        manager.InjectKeyEvent(ScanCode::Enter, true);
+        manager.InjectKeyEvent(ScanCode::Enter, false);
+    };
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    input->SetMultiline(true);
+    enter();
+    EXPECT_EQ(input->GetText(), "\n");
+    input->SetEditingEnabled(false);
+    enter();
+    EXPECT_EQ(input->GetText(), "\n");
+    input->SetMultiline(false);
+    for (auto modifier : {ScanCode::LeftShift, ScanCode::RightShift, ScanCode::LeftControl, ScanCode::RightControl}) {
+        manager.InjectKeyEvent(modifier, true);
+        enter();
+        manager.InjectKeyEvent(modifier, false);
+    }
+    EXPECT_EQ(submissions, 4);
+    manager.InjectKeyEvent(ScanCode::Space, true);
+    manager.InjectKeyEvent(ScanCode::Space, false);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), checkbox);
+    enter();
+    EXPECT_TRUE(checkbox->IsChecked());
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), dropdown);
+    enter();
+    EXPECT_TRUE(dropdown->IsExpanded());
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), other);
+    enter();
+    EXPECT_EQ(otherClicks, 1);
+    EXPECT_EQ(clicks, 0);
+}
+
+TEST(DialogDefault, FocusChangesAndReconfigurationCancelUntilRelease) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    auto* next = manager.GetRoot().CreateChild<UIInputBox>("Next");
+    auto* accept = manager.GetRoot().CreateChild<UIButton>("Accept");
+    auto* replacement = manager.GetRoot().CreateChild<UIButton>("Replacement");
+    int clicks = 0;
+    accept->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    replacement->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    ASSERT_TRUE(manager.SetDefaultButton(manager.GetRoot(), accept));
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), input);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), next);
+    EXPECT_FALSE(accept->IsKeyboardPressed());
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 0);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    ASSERT_TRUE(manager.SetDefaultButton(manager.GetRoot(), replacement));
+    EXPECT_FALSE(accept->IsKeyboardPressed());
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 0);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    ASSERT_TRUE(manager.SetDefaultButton(manager.GetRoot(), replacement));
+    EXPECT_TRUE(replacement->IsKeyboardPressed());
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 1);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    ASSERT_TRUE(manager.SetDefaultButton(manager.GetRoot(), nullptr));
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 1);
+}
+
+TEST(DialogDefault, EligibilityChangesCancelOnRenderUpdateAndKeyInjection) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    auto* accept = manager.GetRoot().CreateChild<UIButton>("Accept");
+    int clicks = 0;
+    accept->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    ASSERT_TRUE(manager.SetDefaultButton(manager.GetRoot(), accept));
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    accept->SetVisible(false);
+    manager.Render();
+    EXPECT_FALSE(accept->IsKeyboardPressed());
+    accept->SetVisible(true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 0);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    accept->SetMouseEnabled(false);
+    manager.Update(0);
+    accept->SetMouseEnabled(true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 0);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    input->SetMultiline(true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 0);
+    EXPECT_TRUE(input->GetText().empty());
+    input->SetMultiline(false);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::LeftControl, true);
+    manager.InjectKeyEvent(ScanCode::LeftControl, false);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 0);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    input->SetVisible(false);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 0);
+    EXPECT_EQ(manager.GetFocusedWidget(), nullptr);
+}
+
+TEST(DialogDefault, PopupIsolationAndCallbacksDoNotLeakOrRepeatActivation) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    auto* accept = manager.GetRoot().CreateChild<UIButton>("Accept");
+    auto* menu = manager.GetOverlayRoot().CreateChild<UIContextMenu>(manager, "Menu");
+    int clicks = 0;
+    int menuClicks = 0;
+    accept->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) {
+        ++clicks;
+        EXPECT_FALSE(accept->IsKeyboardPressed());
+        EXPECT_TRUE(manager.SetDefaultButton(manager.GetRoot(), nullptr));
+        menu->Open(0, 0, input);
+    });
+    menu->SetItems({{"Action", [&] { ++menuClicks; }}});
+    ASSERT_TRUE(manager.SetDefaultButton(manager.GetRoot(), accept));
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    menu->Open(0, 0, input);
+    EXPECT_FALSE(accept->IsKeyboardPressed());
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 0);
+    EXPECT_EQ(menuClicks, 0);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(menuClicks, 1);
+    EXPECT_EQ(manager.GetActivePopup(), nullptr);
+    EXPECT_EQ(manager.GetFocusedWidget(), input);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 1);
+    EXPECT_EQ(manager.GetActivePopup(), menu);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(menuClicks, 1);
+    EXPECT_EQ(clicks, 1);
+}
 
 TEST(FocusVisualization, RingFollowsFocusAndHonorsAppearanceAndEligibility) {
     auto renderer = std::make_shared<NullRenderer>();
