@@ -79,6 +79,86 @@ Wheel input still uses the nearest `IScrollable` ancestor; keyboard/character
 input still uses the focused `IFocusable`. Game-event subscriptions are a
 separate broadcast mechanism and do not bubble.
 
+### Compound widgets
+
+Include `<LambUI/LambUI.h>` or the individual widget headers. All widgets
+emit ordinary HAL commands and use injected input; no backend changes are
+needed.
+
+| Widget | C++ API |
+|---|---|
+| `UIProgressBar` | `SetMinMaxValues`, `SetValue`, `SetOrientation`, `SetColors`; non-interactive, horizontal or bottom-up vertical fill |
+| `UITabControl` | `AddTab(label)` returns a retained page; `SetSelectedIndex` switches visible pages without losing their state |
+| `UITreeView` | `AddNode(parentId, label)`, `SetExpanded`, `SetSelectedNode`, `SetNodeText`, `ClearNodes`; clipped, wheel-scrollable rows |
+| `UIContextMenu` | `SetItems`, `Open`, `Close`; actions, disabled rows, separators, and scrolling for long menus |
+| `UIMenuBar` | `AddMenu(label, items)` returns a context menu; click to toggle, hover to switch while a menu is open |
+| `UITooltip` | Normally managed automatically through `UIWidget::SetTooltip(text)` and `UIManager::SetTooltipDelay(seconds)` |
+
+Progress, tab selection, and tree selection emit `OnValueChanged` only when
+the value changes; callbacks query the widget's current value. Tree node IDs
+are local to a tree and remain valid until `ClearNodes`; `RootNode` (zero)
+means the invisible root or no selection. Collapsing a branch preserves its
+selection and descendant expansion state. Click the disclosure mark to
+expand/collapse, or the label to select. Create page content under the widget
+returned by `AddTab`, not directly under the tab control.
+
+```cpp
+using namespace LambUI;
+auto& root = manager.GetRoot();
+auto* tabs = root.CreateChild<UITabControl>("Inspector");
+tabs->SetPoint(AnchorPoint::TopLeft, &root, AnchorPoint::TopLeft, 12, 40);
+tabs->SetSize(320, 240);
+auto* page = tabs->AddTab("Assets");
+tabs->AddTab("Settings");
+auto* tree = page->CreateChild<UITreeView>("Assets");
+tree->SetAllPoints(page);
+const auto folder = tree->AddNode(UITreeView::RootNode, "Textures");
+tree->AddNode(folder, "Portrait");
+tree->SetTooltip("Project assets");
+
+auto* progress = root.CreateChild<UIProgressBar>("Loading");
+progress->SetPoint(AnchorPoint::TopLeft, &root, AnchorPoint::TopLeft, 12, 292);
+progress->SetSize(320, 16);
+progress->SetMinMaxValues(0, 100);
+progress->SetValue(35);
+
+auto* menu = manager.GetOverlayRoot().CreateChild<UIContextMenu>(manager, "AssetMenu");
+menu->SetItems({{"Collapse", [tree, folder] { tree->SetExpanded(folder, false); }},
+        {"", {}, true, true}, {"Unavailable", {}, false}});
+tree->RegisterCallback(UIEventType::OnClick, [menu, tree](const UIEventData& event) {
+  if (event.button == MouseButton::Right) {
+    event.handled = true;
+    menu->Open(event.mouseX, event.mouseY, tree);
+  }
+});
+
+auto* bar = root.CreateChild<UIMenuBar>(manager, "MainMenu");
+bar->SetPoint(AnchorPoint::TopLeft, &root, AnchorPoint::TopLeft, 12, 8);
+bar->SetSize(320, 28);
+bar->AddMenu("View", {{"Assets", [tabs] { tabs->SetSelectedIndex(0); }},
+             {"Settings", [tabs] { tabs->SetSelectedIndex(1); }}});
+```
+
+The manager owns a separate overlay layer whose logical parent is `Root`.
+Create context menus directly under `GetOverlayRoot()` with the same manager;
+`UIMenuBar` does this automatically. The active popup is laid out after the
+normal tree and rendered after its scissor stack has closed. `ShowPopup`
+also accepts a custom overlay widget with an explicit `SetSize`; pass an
+owner to close it when that owner's ancestry becomes hidden. Only one popup
+is active at a time. Outside clicks dismiss it without clicking through;
+Escape closes it. Menu actions close the popup before invoking the callback,
+so the callback can safely replace items or open another menu. Callbacks must
+not outlive objects they capture, as with other LambUI callbacks.
+
+Tooltips inherit from the nearest hovered ancestor with nonempty tooltip
+text. `Update(deltaTime)` takes elapsed seconds and drives the default
+0.5-second delay. Clicks, wheel input, keyboard input, and popup opening hide
+tooltips; they never capture mouse input. Text is measured through
+`ITextMeasurer`, with an approximate monospace fallback when none is supplied.
+Popup and tooltip bounds are clamped to the display. Labels are single-line;
+tabs divide the available width evenly. Nested submenus, keyboard navigation,
+multiline tooltips, and Lua exposure of the new widgets are not implemented.
+
 ### Known limitations (by design, for now)
 
 - Anchors must reference a widget that has *already* been positioned this

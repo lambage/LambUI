@@ -27,6 +27,12 @@ add_library(lambui
     UIControl.cpp
     UIButton.cpp
     UISlider.cpp
+    UIProgressBar.cpp
+    UITabControl.cpp
+    UITreeView.cpp
+    UITooltip.cpp
+    UIContextMenu.cpp
+    UIMenuBar.cpp
     UIInputBox.cpp
     UIDropDownBox.cpp
     UITextureWidget.cpp

@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, Lua/sol2 bindings) is fully implemented and builds
-clean. Tests pass (23 GoogleTest cases). ~70% feature-complete vs goals.txt.
+clean. Tests pass (34 GoogleTest cases).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -47,20 +47,33 @@ See goals.txt for full architecture vision.
     so selecting an option cannot reopen the menu. Same-widget callbacks run.
   - Added 8 regression tests. Full MSVC/Ninja build and all 23 CTest cases
     pass; optional Lua bindings remain disabled in this build.
-- [ ] Vulkan renderer backend (examples/vulkan)
-  - Swapchain + frame loop wired up, but `VulkanExampleRenderer::
-    SubmitRenderCommands` only logs commands — no render pass/pipeline,
-    no quad or text drawing implemented yet.
-- [ ] More compound widgets: ProgressBar, MenuBar, TabControl, TreeView,
+- [x] More compound widgets: ProgressBar, MenuBar, TabControl, TreeView,
       context menu, tooltip system.
+  - Added UIProgressBar, UIMenuBar, UITabControl, UITreeView, UIContextMenu,
+    and UITooltip; public headers exported through LambUI.h.
+  - Retained tab pages; scrollable tree selection/expansion; menu actions,
+    disabled items, separators, reusable rows, and scrolling.
+  - Manager-owned overlays render above normal content/clips, clamp to the
+    viewport, and dismiss on outside click/Escape without click-through.
+    Tooltips use injected frame time and never capture mouse input.
+  - Full MSVC/Ninja build and all 34 CTest cases pass (11 new regressions).
+    Native visual testing was not performed; Lua remains disabled.
+  - Follow-ups: nested submenus and multiline tooltips; keyboard navigation
+    and Lua exposure remain separate backlog items.
 - [ ] Multiple fonts
   - allow for multiple fonts to be registered and text objects will contain
     a font property
+- [ ] Keyboard navigation (Tab/Shift-Tab focus cycling, arrow keys).
+- [ ] Margin/padding system (currently only anchor point + offset).
+- [ ] Min/max size constraints, aspect-ratio preservation, relative
+      ("% of parent") sizing.
+- [ ] styling, rounded corners, shadows, fill colors/patterns    
 
 ## Medium priority (common game UI patterns)
 - [ ] Expand Lua bindings: UIInputBox, UIDropDownBox, UICanvasWidget,
       UIControl are not exposed to Lua yet (lua/src/LuaBindings.cpp only
       covers Widget/Button/StatusBar/FontString/Texture).
+  - Also expose the new compound widgets and tooltip properties.
   - `UI.CreateFrame` factory only supports "Frame", "Button", "StatusBar",
     "EditBox" — missing "DropDown", "Canvas" etc.
 - [x] Implement `ITextMeasurer` concretely in at least one example backend
@@ -69,7 +82,10 @@ See goals.txt for full architecture vision.
     into both the GL and SDL3 examples via `UIManager`'s textMeasurer ctor
     arg, and `UITextWidget::SetText` auto-sizes against it.
 - [ ] Text wrapping + multiline text input (UIInputBox is single-line only).
-
+- [ ] Vulkan renderer backend (examples/vulkan)
+  - Swapchain + frame loop wired up, but `VulkanExampleRenderer::
+    SubmitRenderCommands` only logs commands — no render pass/pipeline,
+    no quad or text drawing implemented yet.
 
 ## Lower priority (polish)
 - [x] Add a standalone OpenGL 3.3 shader example alongside existing examples
@@ -82,14 +98,13 @@ See goals.txt for full architecture vision.
   - Full MSVC/Ninja build and all 15 CTest cases pass. Native GPU smoke
     checks and screenshot inspection pass at 1100x720 and 420x720.
 - [ ] Animation/tween framework.
-- [ ] Keyboard navigation (Tab/Shift-Tab focus cycling, arrow keys).
-- [ ] Margin/padding system (currently only anchor point + offset).
-- [ ] Min/max size constraints, aspect-ratio preservation, relative
-      ("% of parent") sizing.
+- [ ] Nested submenus and multiline tooltips.
 - [ ] Focus ring visualization; default-button Enter-key highlight.
 - [ ] Text selection / copy-paste.
 - [ ] Rendering perf: batching/instancing, texture atlas management,
       command buffer dirty-tracking (currently one draw call per command).
+- [ ] Software renderer backend
+  - user provides a custom framebuffer
 
 ## Notes
 - Full status assessment generated via Explore subagent on 2026-09-30;

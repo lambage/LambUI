@@ -56,6 +56,11 @@ void UIWidget::RegisterCallback(UIEventType type, UIEventCallback callback) {
     m_callbacks[type] = std::move(callback);
 }
 
+void UIWidget::SetTooltip(std::string text) {
+    LAMBUI_LOGT(TAG, "'{}' SetTooltip('{}')", m_name, text);
+    m_tooltip = std::move(text);
+}
+
 void UIWidget::FireEvent(const UIEventData& data) {
     LAMBUI_LOGT(TAG, "'{}' FireEvent({})", m_name, ToString(data.type));
     const bool bubbles = data.type != UIEventType::OnMouseEnter &&
@@ -126,6 +131,10 @@ void UIWidget::GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
     if (!m_isVisible) return;
     OnGenerateRenderCommands(bucket);
     for (auto& child : m_children) child->GenerateRenderCommands(bucket);
+}
+
+void UIWidget::AppendChildRenderCommands(UIWidget& child, std::vector<UIRenderCommand>& bucket) {
+    if (child.GetParent() == this) child.GenerateRenderCommands(bucket);
 }
 
 } // namespace LambUI

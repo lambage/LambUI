@@ -13,6 +13,8 @@
 
 namespace LambUI {
 
+class UITooltip;
+
 // Root context: owns the widget tree, drives layout resolution, performs
 // input hit-testing/bubbling, and flushes render commands to the backend.
 class LAMBUI_API UIManager {
@@ -29,6 +31,11 @@ public:
     const ITextMeasurer* GetTextMeasurer() const { return m_textMeasurer.get(); }
 
     void SetDisplaySize(float width, float height);
+    UIWidget& GetOverlayRoot() { return *m_overlayRoot; }
+    void ShowPopup(UIWidget& popup, float x, float y, UIWidget* owner = nullptr, bool allowOwnerInput = false);
+    void ClosePopup();
+    UIWidget* GetActivePopup() const { return m_activePopup; }
+    void SetTooltipDelay(float seconds);
 
     // --- Input injection pipeline (engine pushes events in; library never polls) ---
     void InjectMouseMove(float x, float y);
@@ -49,6 +56,10 @@ public:
 private:
     UIWidget* HitTestRecursive(UIWidget& widget, float x, float y) const;
     void UpdateHover(float x, float y);
+    UIWidget* HitTestInput(float x, float y) const;
+    void PlaceOverlay(UIWidget& widget, float x, float y, float requestedWidth, float requestedHeight);
+    void ResetTooltip();
+    void UpdateTooltip(float deltaTime);
 
     struct GameEventSubscription {
         UIWidget* listener;
@@ -58,6 +69,19 @@ private:
     std::shared_ptr<IRenderer> m_renderer;
     std::shared_ptr<ITextMeasurer> m_textMeasurer;
     std::unique_ptr<UIWidget> m_root;
+    std::unique_ptr<UIWidget> m_overlayRoot;
+    UITooltip* m_tooltip = nullptr;
+    UIWidget* m_activePopup = nullptr;
+    UIWidget* m_popupOwner = nullptr;
+    UIWidget* m_tooltipTarget = nullptr;
+    float m_tooltipDelay = 0.5f;
+    float m_tooltipElapsed = 0.0f;
+    float m_popupX = 0.0f;
+    float m_popupY = 0.0f;
+    float m_popupWidth = 0.0f;
+    float m_popupHeight = 0.0f;
+    bool m_dismissedPopupPress = false;
+    bool m_popupAllowsOwnerInput = false;
     std::vector<UIRenderCommand> m_commandBucket;
     std::multimap<std::string, GameEventSubscription> m_gameEventListeners;
 

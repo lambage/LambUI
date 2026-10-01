@@ -55,6 +55,8 @@ public:
     void SetMouseEnabled(bool enabled) { m_isMouseEnabled = enabled; }
     bool IsMouseEnabled() const { return m_isMouseEnabled; }
     virtual bool ClipsChildren() const { return false; }
+    void SetTooltip(std::string text);
+    const std::string& GetTooltip() const { return m_tooltip; }
 
     const std::string& GetName() const { return m_name; }
     UIWidget* GetParent() const { return m_parent; }
@@ -81,6 +83,7 @@ protected:
     // container widgets that need to wrap their subtree (e.g.
     // UIScrollContainer emitting PushScissor/PopScissor around its content).
     virtual void GenerateRenderCommands(std::vector<UIRenderCommand>& bucket);
+    void AppendChildRenderCommands(UIWidget& child, std::vector<UIRenderCommand>& bucket);
 
     const std::vector<std::unique_ptr<UIWidget>>& GetChildren() const { return m_children; }
 
@@ -98,6 +101,7 @@ private:
     void SetComputedRectDirect(const UIRect& rect);
 
     std::string m_name;
+    std::string m_tooltip;
     UIWidget* m_parent = nullptr;
     std::vector<std::unique_ptr<UIWidget>> m_children;
     std::vector<AnchorBinding> m_anchors;
