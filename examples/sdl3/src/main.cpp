@@ -152,6 +152,18 @@ int RunExample(SDL_Window* window, SDL_Renderer* sdlRenderer, const std::string&
         return 1;
     }
     UIManager uiManager(renderer, textMeasurer);
+    uiManager.SetClipboardCallbacks([](std::string& text) {
+        LAMBUI_LOGT(TAG, "ReadClipboard");
+        if (!SDL_HasClipboardText()) return false;
+        char* value = SDL_GetClipboardText();
+        if (!value) return false;
+        text = value;
+        SDL_free(value);
+        return true;
+    }, [](const std::string& text) {
+        LAMBUI_LOGT(TAG, "WriteClipboard(bytes={})", text.size());
+        return SDL_SetClipboardText(text.c_str());
+    });
     SDL_StartTextInput(window);
     auto* title = uiManager.GetRoot().CreateChild<UITextWidget>("Title");
     title->SetMouseEnabled(false);
@@ -227,6 +239,9 @@ int RunExample(SDL_Window* window, SDL_Renderer* sdlRenderer, const std::string&
                         case SDLK_LCTRL: scanCode = ScanCode::LeftControl; break;
                         case SDLK_RCTRL: scanCode = ScanCode::RightControl; break;
                         case SDLK_A: scanCode = ScanCode::A; break;
+                        case SDLK_C: scanCode = ScanCode::C; break;
+                        case SDLK_X: scanCode = ScanCode::X; break;
+                        case SDLK_V: scanCode = ScanCode::V; break;
                         case SDLK_LEFT: scanCode = ScanCode::Left; break;
                         case SDLK_RIGHT: scanCode = ScanCode::Right; break;
                         case SDLK_UP: scanCode = ScanCode::Up; break;

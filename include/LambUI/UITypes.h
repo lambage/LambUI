@@ -146,6 +146,9 @@ namespace ScanCode {
     constexpr uint32_t LeftControl = 0x109;
     constexpr uint32_t RightControl = 0x10A;
     constexpr uint32_t A = 65;
+    constexpr uint32_t C = 67;
+    constexpr uint32_t V = 86;
+    constexpr uint32_t X = 88;
 } // namespace ScanCode
 
 } // namespace LambUI

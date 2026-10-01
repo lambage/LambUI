@@ -28,6 +28,67 @@ public:
 };
 }
 
+TEST(Clipboard, LabelHighlightsFollowFontWrappingPaddingAndAncestorClips) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    auto measurer = std::make_shared<FontTestMeasurer>();
+    float advance = 10.0f;
+    UIManager manager(renderer, measurer);
+    auto* scroll = manager.GetRoot().CreateChild<UIScrollContainer>("Scroll");
+    scroll->SetSize(60, 60);
+    scroll->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    scroll->SetScrollbarsEnabled(false);
+    scroll->SetContentSize(120, 160);
+    auto* label = scroll->GetContent()->CreateChild<UITextWidget>("Label");
+    label->SetPoint(AnchorPoint::TopLeft, scroll->GetContent(), AnchorPoint::TopLeft, 10, 8);
+    label->SetWordWrap(true);
+    label->SetTextMeasurer(measurer.get());
+    label->SetFont(&advance);
+    label->SetSize(44, 90);
+    label->SetPadding({2, 3, 2, 3});
+    label->SetText("ab cd\n\nxy");
+    label->SetFocusRingEnabled(false);
+    label->SetSelectionEnabled(true);
+    label->SelectAll();
+    manager.Update(0);
+    manager.Render();
+    int depth = 0;
+    size_t highlights = 0;
+    const float widths[] = {30, 24, 4, 20};
+    for (const auto& command : renderer->bucket) {
+        if (command.type == RenderCommandType::PushScissor) ++depth;
+        if (command.type == RenderCommandType::PopScissor) --depth;
+        if (command.type == RenderCommandType::DrawQuad && command.color == 0x445A66FFu) {
+            ASSERT_LT(highlights, 4u);
+            EXPECT_EQ(depth, 2);
+            EXPECT_FLOAT_EQ(command.x, 12);
+            EXPECT_FLOAT_EQ(command.y, 11 + 20 * static_cast<float>(highlights));
+            EXPECT_FLOAT_EQ(command.width, widths[highlights]);
+            EXPECT_FLOAT_EQ(command.height, 20);
+            ++highlights;
+        }
+    }
+    EXPECT_EQ(depth, 0);
+    EXPECT_EQ(highlights, 4u);
+    manager.InjectMouseMove(22, 16);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    manager.InjectKeyEvent(ScanCode::LeftShift, true);
+    manager.InjectKeyEvent(ScanCode::End, true);
+    EXPECT_EQ(label->GetSelectedText(), "b ");
+    manager.InjectKeyEvent(ScanCode::LeftShift, false);
+    manager.InjectMouseMove(22, 100);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(manager.GetFocusedWidget(), nullptr);
+    label->SetSize(0, 0);
+    manager.Update(0);
+    manager.Render();
+    for (const auto& command : renderer->bucket) {
+        EXPECT_GE(command.width, 0);
+        EXPECT_GE(command.height, 0);
+    }
+}
+
 TEST(FontSelection, RegistrationPreservesDefaultAndRejectsDuplicateHandles) {
     FontAtlas defaultFont;
     FontAtlas alternateFont;

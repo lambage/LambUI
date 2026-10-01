@@ -7,6 +7,7 @@
 #include "UIWidget.h"
 
 #include <map>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -44,6 +45,11 @@ public:
     void InjectMouseWheel(float xOffset, float yOffset);
     void InjectKeyEvent(uint32_t scanCode, bool isDown);
     void InjectCharacter(char32_t codepoint);
+    void SetClipboardCallbacks(std::function<bool(std::string&)> read,
+                               std::function<bool(const std::string&)> write);
+    bool InjectCopy();
+    bool InjectCut();
+    bool InjectPaste();
     UIWidget* GetFocusedWidget() const { return m_focusedWidget; }
     bool SetDefaultButton(UIWidget& dialog, UIButton* button);
     UIButton* GetDefaultButton(const UIWidget& dialog) const;
@@ -91,6 +97,8 @@ private:
     };
 
     std::shared_ptr<IRenderer> m_renderer;
+    std::function<bool(std::string&)> m_readClipboard;
+    std::function<bool(const std::string&)> m_writeClipboard;
     std::shared_ptr<ITextMeasurer> m_textMeasurer;
     std::unique_ptr<UIWidget> m_root;
     std::unique_ptr<UIWidget> m_overlayRoot;

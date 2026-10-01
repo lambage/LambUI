@@ -217,6 +217,18 @@ int main(int argc, char** argv) {
     }
 
     UIManager uiManager(renderer, textMeasurer);
+    uiManager.SetClipboardCallbacks([window](std::string& text) {
+        LAMBUI_LOGT(TAG, "ReadClipboard");
+        const char* value = glfwGetClipboardString(window);
+        if (!value) return false;
+        text = value;
+        return true;
+    }, [window](const std::string& text) {
+        LAMBUI_LOGT(TAG, "WriteClipboard(bytes={})", text.size());
+        glfwGetError(nullptr);
+        glfwSetClipboardString(window, text.c_str());
+        return glfwGetError(nullptr) == GLFW_NO_ERROR;
+    });
     g_uiManager = &uiManager;
 
     glfwSetCursorPosCallback(window, CursorPosCallback);
@@ -235,6 +247,9 @@ int main(int argc, char** argv) {
         else if (key == GLFW_KEY_LEFT_CONTROL) scanCode = ScanCode::LeftControl;
         else if (key == GLFW_KEY_RIGHT_CONTROL) scanCode = ScanCode::RightControl;
         else if (key == GLFW_KEY_A) scanCode = ScanCode::A;
+        else if (key == GLFW_KEY_C) scanCode = ScanCode::C;
+        else if (key == GLFW_KEY_X) scanCode = ScanCode::X;
+        else if (key == GLFW_KEY_V) scanCode = ScanCode::V;
         else if (key == GLFW_KEY_LEFT) scanCode = ScanCode::Left;
         else if (key == GLFW_KEY_RIGHT) scanCode = ScanCode::Right;
         else if (key == GLFW_KEY_UP) scanCode = ScanCode::Up;

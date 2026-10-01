@@ -293,6 +293,11 @@ public:
         m_manager.Update(0);
         passed = capture("selection") && passed;
         m_notes->ClearSelection();
+        ClickCenter(*m_description);
+        m_description->SetSelection(0, 36);
+        m_manager.Update(0);
+        passed = capture("label-selection") && passed;
+        m_description->ClearSelection();
         m_tabs->SetSelectedIndex(3);
         m_manager.Update(0);
         passed = capture("window-settings") && passed;
@@ -374,10 +379,12 @@ private:
         canvas->SetRenderCallback(preview);
         canvas->SetMouseEnabled(false);
 
-        auto* description = AddLabel(*content, "MaterialDescription",
+        m_description = AddLabel(*content, "MaterialDescription",
             "Contour material\nLayered bands follow the surface with a soft, luminous edge.", 12, 518);
-        description->SetWordWrap(true);
-        description->SetSize(248, 76);
+        m_description->SetWordWrap(true);
+        m_description->SetSize(248, 76);
+        m_description->SetMouseEnabled(true);
+        m_description->SetSelectionEnabled(true);
         AddLabel(*content, "NotesLabel", "Material notes", 12, 600);
         m_notes = content->CreateChild<UIInputBox>("MaterialNotes");
         m_notes->SetPoint(AnchorPoint::TopLeft, content, AnchorPoint::TopLeft, 12, 626);
@@ -557,6 +564,34 @@ private:
         m_manager.InjectMouseButton(MouseButton::Left, false);
         passed &= m_notes->GetSelectedText() == "bc";
         m_notes->SetText(notes);
+        std::string clipboard;
+        m_manager.SetClipboardCallbacks([&clipboard](std::string& text) {
+            LAMBUI_LOGT(TAG, "ReadSmokeClipboard");
+            text = clipboard;
+            return true;
+        }, [&clipboard](const std::string& text) {
+            LAMBUI_LOGT(TAG, "WriteSmokeClipboard(bytes={})", text.size());
+            clipboard = text;
+            return true;
+        });
+        ClickCenter(*m_description);
+        m_manager.InjectKeyEvent(ScanCode::LeftControl, true);
+        m_manager.InjectKeyEvent(ScanCode::A, true);
+        m_manager.InjectKeyEvent(ScanCode::C, true);
+        m_manager.InjectKeyEvent(ScanCode::LeftControl, false);
+        passed &= clipboard == m_description->GetText();
+        ClickCenter(*m_notes);
+        m_notes->SelectAll();
+        passed = m_manager.InjectPaste() && passed;
+        passed &= m_notes->GetText() == m_description->GetText();
+        m_notes->SelectAll();
+        passed = m_manager.InjectCut() && passed;
+        passed &= m_notes->GetText().empty() && clipboard == m_description->GetText();
+        passed = m_manager.InjectPaste() && passed;
+        passed &= m_notes->GetText() == m_description->GetText();
+        m_manager.SetClipboardCallbacks({}, {});
+        m_description->ClearSelection();
+        m_notes->SetText(notes);
         m_tabs->SetSelectedIndex(3);
         m_settings->SetScrollOffset(0, 0);
         m_manager.Update(0);
@@ -677,6 +712,7 @@ private:
     LambUI::UIProgressBar* m_progress = nullptr;
     LambUI::UITextWidget* m_status = nullptr;
     LambUI::UITextWidget* m_selection = nullptr;
+    LambUI::UITextWidget* m_description = nullptr;
     LambUI::UIButton* m_toggle = nullptr;
     LambUI::UIButton* m_reset = nullptr;
     LambUI::UITextWidget* m_toggleText = nullptr;

@@ -4,6 +4,7 @@
 #include "LambUI/UIScrollContainer.h"
 #include "LambUI/UIContextMenu.h"
 #include "LambUI/UIInputBox.h"
+#include "LambUI/UITextWidget.h"
 #include "LambUI/UIButton.h"
 #include "LambUI/UIWindow.h"
 #include <algorithm>
@@ -349,6 +350,8 @@ void UIManager::SetFocusedWidget(UIWidget* widget) {
         input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
         input->UpdateCaret(0, m_textMeasurer.get());
     }
+    if (auto* label = dynamic_cast<UITextWidget*>(m_focusedWidget))
+        label->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
     if (!widget) return;
     m_root->ResolveLayout();
     m_overlayRoot->ResolveLayout();
@@ -434,6 +437,51 @@ void UIManager::MoveFocus(bool backwards) {
     SetFocusedWidget(targets[index]);
 }
 
+void UIManager::SetClipboardCallbacks(std::function<bool(std::string&)> read,
+                                      std::function<bool(const std::string&)> write) {
+    LAMBUI_LOGT(TAG, "SetClipboardCallbacks(read={}, write={})", bool(read), bool(write));
+    m_readClipboard = std::move(read);
+    m_writeClipboard = std::move(write);
+}
+
+bool UIManager::InjectCopy() {
+    LAMBUI_LOGT(TAG, "InjectCopy");
+    if (!CanFocusWidget(m_focusedWidget) ||
+        (m_activePopup && !IsWithin(m_focusedWidget, PopupScope()))) return false;
+    auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget);
+    auto* label = dynamic_cast<UITextWidget*>(m_focusedWidget);
+    const std::string text = input ? input->GetSelectedText() : label ? label->GetSelectedText() : std::string{};
+    const auto write = m_writeClipboard;
+    return !text.empty() && write && write(text);
+}
+
+bool UIManager::InjectCut() {
+    LAMBUI_LOGT(TAG, "InjectCut");
+    auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget);
+    if (!input || !input->IsEditingEnabled()) return false;
+    const auto text = input->GetText();
+    const size_t start = input->GetSelectionStart();
+    const size_t end = input->GetSelectionEnd();
+    if (!InjectCopy() || m_focusedWidget != input || !CanFocusWidget(input) ||
+        (m_activePopup && !IsWithin(input, PopupScope())) || !input->IsEditingEnabled() ||
+        input->GetText() != text || input->GetSelectionStart() != start || input->GetSelectionEnd() != end) return false;
+    input->Backspace();
+    return true;
+}
+
+bool UIManager::InjectPaste() {
+    LAMBUI_LOGT(TAG, "InjectPaste");
+    auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget);
+    if (!input || !CanFocusWidget(input) || !input->IsEditingEnabled() ||
+        (m_activePopup && !IsWithin(input, PopupScope()))) return false;
+    const auto read = m_readClipboard;
+    std::string text;
+    if (!read || !read(text) || text.empty() || m_focusedWidget != input ||
+        !CanFocusWidget(input) || !input->IsEditingEnabled() ||
+        (m_activePopup && !IsWithin(input, PopupScope()))) return false;
+    return input->PasteText(text);
+}
+
 void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
     LAMBUI_LOGT(TAG, "InjectKeyEvent({}, isDown={})", scanCode, isDown);
     ResetTooltip();
@@ -442,6 +490,8 @@ void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
         ValidateDialogDefaultPress();
         if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget))
             input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
+        if (auto* label = dynamic_cast<UITextWidget*>(m_focusedWidget))
+            label->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
         return;
     }
     if (scanCode == ScanCode::LeftControl || scanCode == ScanCode::RightControl) {
@@ -449,6 +499,8 @@ void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
         ValidateDialogDefaultPress();
         if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget))
             input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
+        if (auto* label = dynamic_cast<UITextWidget*>(m_focusedWidget))
+            label->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
         return;
     }
     if (!CanFocusWidget(m_focusedWidget)) SetFocusedWidget(nullptr);
@@ -494,6 +546,15 @@ void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
             }
         }
         if (!IsWithin(m_focusedWidget, PopupScope())) return;
+    }
+    if ((m_leftControl || m_rightControl) &&
+        (scanCode == ScanCode::C || scanCode == ScanCode::X || scanCode == ScanCode::V)) {
+        if (isDown) {
+            if (scanCode == ScanCode::C) InjectCopy();
+            else if (scanCode == ScanCode::X) InjectCut();
+            else InjectPaste();
+        }
+        return;
     }
     if (scanCode == ScanCode::Enter && isDown) {
         if (auto* button = DialogDefaultTarget()) {

@@ -171,6 +171,31 @@ void UIInputBox::SubmitEnter() {
     } else FireEvent(UIEventData{UIEventType::OnEnterPressed});
 }
 
+bool UIInputBox::PasteText(const std::string& text) {
+    LAMBUI_LOGT(TAG, "'{}' PasteText(bytes={})", GetName(), text.size());
+    if (!m_isFocused || !m_editingEnabled) return false;
+    std::string normalized;
+    for (size_t index = 0; index < text.size(); ++index) {
+        const unsigned char character = static_cast<unsigned char>(text[index]);
+        if (character == '\r' || character == '\n') {
+            if (character == '\r' && index + 1 < text.size() && text[index + 1] == '\n') ++index;
+            normalized += m_multiline ? '\n' : ' ';
+        } else if (character == '\t') normalized += ' ';
+        else if (character >= 32 && character != 127) normalized += static_cast<char>(character);
+    }
+    if (normalized.empty()) return false;
+    EraseSelection();
+    m_text.insert(m_cursor, normalized);
+    m_cursor += normalized.size();
+    m_selectionAnchor = m_cursor;
+    m_caretElapsed = 0.0f;
+    m_preferredCaretX = -1.0f;
+    m_cursorAtLineEnd = false;
+    MarkDirty();
+    FireEvent(UIEventData{UIEventType::OnTextChanged});
+    return true;
+}
+
 void UIInputBox::SetText(const std::string& text) {
     LAMBUI_LOGT(TAG, "'{}' SetText('{}')", GetName(), text);
     std::string normalized;

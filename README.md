@@ -473,7 +473,7 @@ editable multiline notes.
 
 `UIInputBox::SetEditingEnabled(false)` makes the field read-only;
 `IsEditingEnabled()` reports the flag, which defaults to true. It blocks typing,
-Backspace, Delete, and multiline Enter without clearing the current selection.
+Backspace, Delete, cut, paste, and multiline Enter without clearing the current selection.
 Focus, pointer/keyboard navigation, selection, and application `SetText` updates
 remain available. Single-line Enter still fires `OnEnterPressed`, since it does
 not edit text. Re-enable editing with `SetEditingEnabled(true)`.
@@ -509,8 +509,57 @@ and `ClearSelection()` are convenience methods; `GetSelectionStart()` and
 returns its contents. These setters do not fire text-change events. Selection
 persists across focus loss and is drawn with an inactive tint; focus loss or
 disabling selection cancels an active drag. Highlights are clipped HAL quads
-behind the text, including explicit blank lines. Static `UITextWidget` labels
-are not selectable; clipboard and Unicode grapheme/shaping support remain separate.
+behind the text, including explicit blank lines. Unicode grapheme/shaping
+support remains separate; selection boundaries are codepoints, not graphemes.
+
+`UITextWidget` offers the same selection property and range methods, but
+selection defaults to **off**. Enable it with `SetSelectionEnabled(true)`;
+labels configured as decorative with `SetMouseEnabled(false)` must also have
+mouse input enabled to receive focus. Selectable labels support captured drag,
+Shift-click, Shift+arrows/Home/End, Ctrl+A, and Ctrl+Home/End. They are copy-only:
+typing, cut, paste, and Enter never change their text or activate a dialog default.
+Selection persists on focus loss, while `SetText` resets it. Disabling selection
+clears the range and removes the label from keyboard focus navigation.
+
+Label highlights use the existing font, padding, and wrapped-line geometry,
+with content and ancestor scissor clips. Labels keep their normal auto-sizing
+or fixed wrapped bounds and do not gain an input border, caret, or internal
+scrolling. Set the label's text measurer as usual for font-aware hit testing.
+The shared Controls gallery's material description demonstrates selectable text.
+
+### Clipboard
+
+Clipboard access is supplied by the host, never polled from the core library:
+
+```cpp
+manager.SetClipboardCallbacks(
+  [](std::string& utf8) { return HostReadClipboard(utf8); },
+  [](const std::string& utf8) { return HostWriteClipboard(utf8); });
+```
+
+`HostReadClipboard` and `HostWriteClipboard` stand for your engine's synchronous
+clipboard adapters. Pass valid UTF-8, return true on success, and keep captured
+host resources alive while registered. Callbacks run on the injecting UI thread;
+they should not mutate the UI. `SetClipboardCallbacks({}, {})` detaches them.
+There is no internal clipboard fallback. GLFW and SDL3 examples install native
+adapters in their platform source files; smoke tests use an in-memory clipboard
+and never overwrite the OS clipboard.
+
+Forward `ScanCode::C`, `X`, and `V` plus both Control keys through
+`InjectKeyEvent` for Ctrl+C/X/V. Hosts can instead call `InjectCopy()`,
+`InjectCut()`, and `InjectPaste()` directly, including for platform-specific
+shortcuts. These operate only on eligible focus within the active popup scope
+and return whether the operation succeeded. Key releases do not repeat edits.
+
+Copy requires a nonempty selection and also works in read-only inputs. Cut
+deletes only after a successful clipboard write; cut and paste require editing
+enabled. Missing/failed callbacks and empty pastes preserve text and selection.
+Paste replaces the selection or inserts at the cursor, including when selection
+is disabled. CRLF/CR normalize to LF for multiline inputs and spaces for
+single-line inputs; tabs become spaces and other ASCII control bytes are dropped.
+Each successful paste or cut emits one `OnTextChanged`, never `OnEnterPressed`.
+`UIInputBox::PasteText(utf8)` also accepts host-provided text directly, subject to
+focus/editing checks and the same normalization, without accessing a clipboard.
 
 ### Known limitations (by design, for now)
 

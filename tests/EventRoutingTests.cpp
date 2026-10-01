@@ -9,6 +9,7 @@
 #include "LambUI/UIMenuBar.h"
 #include "LambUI/UIRadioButton.h"
 #include "LambUI/UITextureWidget.h"
+#include "LambUI/UITextWidget.h"
 #include "LambUI/UIWindow.h"
 #include <gtest/gtest.h>
 #include <algorithm>
@@ -25,6 +26,227 @@ public:
     void SubmitRenderCommands(const std::vector<UIRenderCommand>& bucket) override { commands = bucket; }
 };
 } // namespace
+
+TEST(Clipboard, InputShortcutsNormalizePasteAndRespectReadOnly) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    std::string clipboard;
+    bool writable = true;
+    manager.SetClipboardCallbacks([&](std::string& text) { text = clipboard; return true; },
+        [&](const std::string& text) { if (!writable) return false; clipboard = text; return true; });
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    input->SetText(u8"one \u00e9 two");
+    input->SetSelection(4, 6);
+    int changes = 0;
+    input->RegisterCallback(UIEventType::OnTextChanged, [&](const UIEventData&) { ++changes; });
+    manager.InjectKeyEvent(ScanCode::LeftControl, true);
+    manager.InjectKeyEvent(ScanCode::C, true);
+    EXPECT_EQ(clipboard, u8"\u00e9");
+    EXPECT_EQ(changes, 0);
+    writable = false;
+    EXPECT_FALSE(manager.InjectCut());
+    EXPECT_EQ(input->GetSelectedText(), clipboard);
+    writable = true;
+    manager.InjectKeyEvent(ScanCode::X, true);
+    manager.InjectKeyEvent(ScanCode::X, false);
+    EXPECT_EQ(input->GetText(), "one  two");
+    EXPECT_EQ(changes, 1);
+    clipboard = u8"\u03bb\r\nnext\tline\n";
+    manager.InjectKeyEvent(ScanCode::V, true);
+    EXPECT_EQ(input->GetText(), u8"one \u03bb next line  two");
+    EXPECT_EQ(changes, 2);
+    input->SelectAll();
+    input->SetEditingEnabled(false);
+    EXPECT_TRUE(manager.InjectCopy());
+    EXPECT_FALSE(manager.InjectCut());
+    EXPECT_FALSE(manager.InjectPaste());
+    EXPECT_EQ(changes, 2);
+    input->SetEditingEnabled(true);
+    input->SetMultiline(true);
+    input->SelectAll();
+    clipboard = "first\r\nsecond\rthird";
+    EXPECT_TRUE(manager.InjectPaste());
+    EXPECT_EQ(input->GetText(), "first\nsecond\nthird");
+    EXPECT_EQ(changes, 3);
+    input->SelectAll();
+    clipboard.clear();
+    EXPECT_FALSE(manager.InjectPaste());
+    EXPECT_EQ(input->GetSelectedText(), input->GetText());
+    clipboard = std::string("\0\x01\x7f", 3);
+    EXPECT_FALSE(manager.InjectPaste());
+    EXPECT_EQ(input->GetSelectedText(), input->GetText());
+    EXPECT_EQ(changes, 3);
+    manager.SetClipboardCallbacks({}, {});
+    EXPECT_FALSE(manager.InjectCopy());
+    EXPECT_FALSE(manager.InjectCut());
+    EXPECT_FALSE(manager.InjectPaste());
+}
+
+TEST(Clipboard, LabelsOptInToMouseKeyboardSelectionAndCopyOnly) {
+    auto renderer = std::make_shared<NullRenderer>();
+    UIManager manager(renderer);
+    auto* label = manager.GetRoot().CreateChild<UITextWidget>("Label");
+    label->SetSize(80, 64);
+    label->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 10, 10);
+    label->SetText(u8"ab\u00e9d\nnext");
+    label->SetWordWrap(true);
+    label->SetFocusRingEnabled(false);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    EXPECT_EQ(manager.GetFocusedWidget(), input);
+    label->SelectAll();
+    EXPECT_TRUE(label->GetSelectedText().empty());
+    label->SetSelectionEnabled(true);
+    manager.Update(0);
+    manager.InjectMouseMove(18, 15);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseMove(42, 15);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(manager.GetFocusedWidget(), label);
+    EXPECT_EQ(label->GetSelectedText(), u8"b\u00e9d");
+    manager.InjectKeyEvent(ScanCode::RightShift, true);
+    manager.InjectKeyEvent(ScanCode::Down, true);
+    EXPECT_EQ(label->GetSelectedText(), u8"b\u00e9d\nnext");
+    manager.InjectKeyEvent(ScanCode::RightShift, false);
+    std::string clipboard;
+    manager.SetClipboardCallbacks([](std::string& text) { text = "replacement"; return true; },
+        [&](const std::string& text) { clipboard = text; return true; });
+    manager.InjectKeyEvent(ScanCode::RightControl, true);
+    manager.InjectKeyEvent(ScanCode::A, true);
+    manager.InjectKeyEvent(ScanCode::C, true);
+    EXPECT_EQ(clipboard, label->GetText());
+    EXPECT_FALSE(manager.InjectCut());
+    EXPECT_FALSE(manager.InjectPaste());
+    manager.InjectCharacter(U'!');
+    EXPECT_EQ(label->GetText(), clipboard);
+    manager.Render();
+    EXPECT_EQ(std::count_if(renderer->commands.begin(), renderer->commands.end(),
+        [](const UIRenderCommand& command) { return command.color == 0x287EA8FFu; }), 2);
+    label->SetSelection(4, 2);
+    EXPECT_EQ(label->GetSelectedText(), u8"\u00e9");
+    label->SetSelectionEnabled(false);
+    EXPECT_TRUE(label->GetSelectedText().empty());
+    EXPECT_FALSE(manager.InjectCopy());
+    manager.Update(0);
+    EXPECT_EQ(manager.GetFocusedWidget(), nullptr);
+    label->SetSelectionEnabled(true);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::A, true);
+    EXPECT_EQ(label->GetSelectedText(), label->GetText());
+    label->SetText("short");
+    EXPECT_TRUE(label->GetSelectedText().empty());
+}
+
+TEST(Clipboard, FailedReadsAndIneligibleFocusLeaveTextUntouched) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* parent = manager.GetRoot().CreateChild<UIWidget>("Parent");
+    auto* input = parent->CreateChild<UIInputBox>("Input");
+    input->SetText("original");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    input->SelectAll();
+    int reads = 0;
+    int writes = 0;
+    bool readable = false;
+    manager.SetClipboardCallbacks([&](std::string& text) {
+        ++reads;
+        text = "paste";
+        return readable;
+    }, [&](const std::string&) { ++writes; return true; });
+    EXPECT_FALSE(manager.InjectPaste());
+    EXPECT_EQ(input->GetSelectedText(), "original");
+    readable = true;
+    parent->SetVisible(false);
+    EXPECT_FALSE(manager.InjectCopy());
+    EXPECT_FALSE(manager.InjectCut());
+    EXPECT_FALSE(manager.InjectPaste());
+    EXPECT_EQ(reads, 1);
+    EXPECT_EQ(writes, 0);
+    parent->SetVisible(true);
+    input->SetKeyboardEnabled(false);
+    EXPECT_FALSE(manager.InjectPaste());
+    input->SetKeyboardEnabled(true);
+    input->SetSelectionEnabled(false);
+    EXPECT_FALSE(manager.InjectCopy());
+    EXPECT_FALSE(manager.InjectCut());
+    EXPECT_EQ(writes, 0);
+    EXPECT_TRUE(manager.InjectPaste());
+    EXPECT_EQ(input->GetText(), "originalpaste");
+    auto* popup = manager.GetOverlayRoot().CreateChild<UIWidget>("Popup");
+    popup->SetSize(120, 60);
+    auto* popupInput = popup->CreateChild<UIInputBox>("PopupInput");
+    popupInput->SetText("popup");
+    popupInput->SetKeyboardEnabled(false);
+    manager.ShowPopup(*popup, 0, 0);
+    EXPECT_FALSE(manager.InjectPaste());
+    popupInput->SetKeyboardEnabled(true);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    EXPECT_EQ(manager.GetFocusedWidget(), popupInput);
+    popupInput->SelectAll();
+    EXPECT_TRUE(manager.InjectPaste());
+    EXPECT_EQ(popupInput->GetText(), "paste");
+    EXPECT_EQ(input->GetText(), "originalpaste");
+    manager.ClosePopup();
+    EXPECT_EQ(manager.GetFocusedWidget(), input);
+}
+
+TEST(Clipboard, CallbackFocusAndSelectionChangesCancelPendingEdits) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* first = manager.GetRoot().CreateChild<UIInputBox>("First");
+    auto* second = manager.GetRoot().CreateChild<UIInputBox>("Second");
+    first->SetText("first");
+    second->SetText("second");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    first->SelectAll();
+    manager.SetClipboardCallbacks([&](std::string& text) {
+        text = "replacement";
+        manager.InjectKeyEvent(ScanCode::Tab, true);
+        return true;
+    }, {});
+    EXPECT_FALSE(manager.InjectPaste());
+    EXPECT_EQ(manager.GetFocusedWidget(), second);
+    EXPECT_EQ(first->GetText(), "first");
+    EXPECT_EQ(second->GetText(), "second");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.SetClipboardCallbacks({}, [&](const std::string&) {
+        first->SetSelection(1, 3);
+        manager.SetClipboardCallbacks({}, {});
+        return true;
+    });
+    EXPECT_FALSE(manager.InjectCut());
+    EXPECT_EQ(first->GetText(), "first");
+    EXPECT_EQ(first->GetSelectedText(), "ir");
+}
+
+TEST(Clipboard, SelectableLabelConsumesClicksAndCancelsDragOnFocusLoss) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* button = manager.GetRoot().CreateChild<UIButton>("ParentButton");
+    button->SetSize(120, 32);
+    button->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    auto* label = button->CreateChild<UITextWidget>("Label");
+    label->SetAllPoints(button);
+    label->SetText("abcdef");
+    label->SetSelectionEnabled(true);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    int clicks = 0;
+    button->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    manager.Update(0);
+    manager.InjectMouseMove(8, 8);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseMove(24, 8);
+    EXPECT_EQ(label->GetSelectedText(), "bc");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), input);
+    manager.InjectMouseMove(40, 8);
+    EXPECT_EQ(label->GetSelectedText(), "bc");
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(clicks, 0);
+    label->SetSelectionEnabled(false);
+    manager.InjectMouseMove(8, 8);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(manager.GetFocusedWidget(), button);
+    EXPECT_EQ(clicks, 1);
+}
 
 TEST(DialogDefault, SingleLineInputRoutesPairedEnterWithoutMovingFocus) {
     auto renderer = std::make_shared<NullRenderer>();

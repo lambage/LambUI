@@ -17,6 +17,7 @@ public:
     void AppendCharacter(char32_t codepoint);
     void Backspace();
     void SubmitEnter();
+    bool PasteText(const std::string& text);
 
     const std::string& GetText() const { return m_text; }
     size_t GetCursorPosition() const { return m_cursor; }

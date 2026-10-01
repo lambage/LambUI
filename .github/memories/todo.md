@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, manual Lua C API bindings) is fully implemented and
-builds as C++14. Tests pass (120 GoogleTest cases; optional Lua enabled).
+builds as C++14. Tests pass (126 GoogleTest cases; optional Lua enabled).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -275,7 +275,17 @@ See goals.txt for full architecture vision.
     can opt in. Hidden/disabled defaults preserve normal input submission.
   - Eight regressions; full MSVC/Ninja build and all 120 CTest cases pass (Lua
     enabled). README updated; native visual smoke not run. Core HAL unchanged.
-- [ ] Copy/paste and opt-in selection for static text labels.
+- [x] Copy/paste and opt-in selection for static text labels.
+  - Host-owned UTF-8 clipboard callbacks; injected copy/cut/paste and Ctrl+C/X/V.
+    Read-only copy, successful-write-before-cut, normalized single/multiline
+    paste, one text-change event per edit, and focus/popup eligibility checks.
+  - UITextWidget selection defaults off; captured drag, Shift navigation,
+    range APIs, copy-only text, and font-aware wrapped/clipped highlights.
+  - GLFW/SDL3 native adapters and shared selectable-description showcase.
+    Six regressions; full MSVC/Ninja build and all 126 CTest cases pass (Lua
+    enabled). GL33/SDL3/legacy GL desktop/compact smoke passes using an
+    in-memory clipboard; SDL label-selection captures inspected. OS clipboard
+    round-trip not automated. README updated; core HAL/platform boundary intact.
 - [ ] Rendering perf: batching/instancing, texture atlas management,
       command buffer dirty-tracking (currently one draw call per command).
 - [ ] Expand Lua bindings: UIInputBox, UIDropDownBox, UICanvasWidget,
@@ -285,6 +295,7 @@ See goals.txt for full architecture vision.
     window events, and tooltip properties.
   - Expose the base-widget margin/padding, size constraints, relative sizing,
     aspect ratio, and UIStyle APIs.
+  - Expose static-label selection and clipboard injection APIs.
   - `UI.CreateFrame` factory only supports "Frame", "Button", "StatusBar",
     "EditBox" — missing "DropDown", "Canvas" etc.      
 - [ ] Software renderer backend
