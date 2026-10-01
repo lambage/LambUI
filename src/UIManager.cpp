@@ -60,6 +60,15 @@ void UIManager::UpdateHover(float x, float y) {
 }
 
 UIWidget* UIManager::HitTestRecursive(UIWidget& widget, float x, float y) const {
+    if (!widget.IsVisible()) return nullptr;
+    if (widget.ClipsChildren()) {
+        const UIRect& rect = widget.GetComputedRect();
+        if (rect.width <= 0.0f || rect.height <= 0.0f ||
+            x < rect.x || x >= rect.x + rect.width ||
+            y < rect.y || y >= rect.y + rect.height) {
+            return nullptr;
+        }
+    }
     // Reverse child order == front-to-back in render order; test top-most first.
     const auto& children = widget.GetChildren();
     for (auto it = children.rbegin(); it != children.rend(); ++it) {

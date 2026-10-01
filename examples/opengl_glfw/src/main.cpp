@@ -15,6 +15,7 @@
 using namespace LambUI;
 
 namespace {
+constexpr const char* TAG = "OpenGLExample";
 UIManager* g_uiManager = nullptr;
 GLExampleRenderer* g_renderer = nullptr;
 
@@ -86,6 +87,13 @@ int main() {
     glfwSetMouseButtonCallback(window, MouseButtonCallback);
     glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
     glfwSetCharCallback(window, CharCallback);
+    glfwSetScrollCallback(window, [](GLFWwindow*, double xOffset, double yOffset) {
+        LAMBUI_LOGT(TAG, "Scroll({}, {})", xOffset, yOffset);
+        if (g_uiManager) {
+            g_uiManager->InjectMouseWheel(static_cast<float>(xOffset) * 20.0f,
+                                         static_cast<float>(yOffset) * 20.0f);
+        }
+    });
 
     // --- Build a small demo UI tree to showcase the widgets ---
     UIWidget& root = uiManager.GetRoot();

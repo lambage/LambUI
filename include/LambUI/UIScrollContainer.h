@@ -24,11 +24,14 @@ public:
     void SetScrollOffset(float x, float y);
     float GetScrollX() const { return m_scrollX; }
     float GetScrollY() const { return m_scrollY; }
+    bool ClipsChildren() const override { return true; }
 
-    // IScrollable: called by UIManager::InjectMouseWheel.
+    // IScrollable: pixel deltas; positive values move toward the left/top.
+    // Hosts convert wheel steps to pixels before UIManager::InjectMouseWheel.
     void OnScroll(float xOffset, float yOffset) override;
 
 protected:
+    void OnLayoutChanged() override;
     void GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) override;
 
 private:

@@ -9,6 +9,7 @@ constexpr const char* TAG = "UIScrollContainer";
 } // namespace
 
 UIScrollContainer::UIScrollContainer(std::string name) : UIWidget(std::move(name)) {
+    LAMBUI_LOGT(TAG, "constructed '{}'", GetName());
     m_content = CreateChild<UIWidget>(GetName() + "_Content");
     m_content->SetPoint(AnchorPoint::TopLeft, this, AnchorPoint::TopLeft, 0.0f, 0.0f);
 }
@@ -22,13 +23,14 @@ void UIScrollContainer::SetContentSize(float width, float height) {
 }
 
 void UIScrollContainer::SetScrollOffset(float x, float y) {
+    LAMBUI_LOGT(TAG, "'{}' SetScrollOffset({}, {})", GetName(), x, y);
     m_scrollX = x;
     m_scrollY = y;
     ApplyScrollOffset();
 }
 
 void UIScrollContainer::OnScroll(float xOffset, float yOffset) {
-    // Conventional wheel direction: scrolling "up" (+y) moves content up on screen.
+    LAMBUI_LOGT(TAG, "'{}' OnScroll({}, {})", GetName(), xOffset, yOffset);
     SetScrollOffset(m_scrollX - xOffset, m_scrollY - yOffset);
 }
 
@@ -43,6 +45,11 @@ void UIScrollContainer::ApplyScrollOffset() {
 
     m_content->ClearPoints();
     m_content->SetPoint(AnchorPoint::TopLeft, this, AnchorPoint::TopLeft, -m_scrollX, -m_scrollY);
+}
+
+void UIScrollContainer::OnLayoutChanged() {
+    LAMBUI_LOGT(TAG, "'{}' OnLayoutChanged", GetName());
+    ApplyScrollOffset();
 }
 
 void UIScrollContainer::GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {

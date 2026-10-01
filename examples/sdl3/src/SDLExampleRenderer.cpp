@@ -1,4 +1,5 @@
 #include "SDLExampleRenderer.h"
+#include "LambUI/UILog.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <vector>
@@ -6,6 +7,7 @@
 using namespace LambUI;
 
 namespace {
+constexpr const char* TAG = "SDLExampleRenderer";
 void ApplyColor(SDL_Renderer* renderer, uint32_t packedRGBA) {
     const Uint8 r = static_cast<Uint8>((packedRGBA >> 24) & 0xFF);
     const Uint8 g = static_cast<Uint8>((packedRGBA >> 16) & 0xFF);
@@ -79,6 +81,9 @@ void SDLExampleRenderer::DrawString(const UIRenderCommand& cmd) {
 }
 
 void SDLExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>& commands) {
+    LAMBUI_LOGT(TAG, "SubmitRenderCommands({})", commands.size());
+    std::vector<SDL_Rect> clips;
+    SDL_SetRenderClipRect(m_renderer, nullptr);
     SDL_SetRenderDrawBlendMode(m_renderer, SDL_BLENDMODE_BLEND);
 
     for (const auto& cmd : commands) {
@@ -95,11 +100,18 @@ void SDLExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>
             case RenderCommandType::PushScissor: {
                 SDL_Rect clip{static_cast<int>(cmd.x), static_cast<int>(cmd.y),
                               static_cast<int>(cmd.width), static_cast<int>(cmd.height)};
+                if (!clips.empty()) {
+                    SDL_Rect intersection{};
+                    SDL_GetRectIntersection(&clips.back(), &clip, &intersection);
+                    clip = intersection;
+                }
+                clips.push_back(clip);
                 SDL_SetRenderClipRect(m_renderer, &clip);
                 break;
             }
             case RenderCommandType::PopScissor:
-                SDL_SetRenderClipRect(m_renderer, nullptr);
+                if (!clips.empty()) clips.pop_back();
+                SDL_SetRenderClipRect(m_renderer, clips.empty() ? nullptr : &clips.back());
                 break;
             case RenderCommandType::CustomCallback:
                 if (cmd.customRenderFunc) {

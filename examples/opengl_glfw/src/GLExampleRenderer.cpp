@@ -1,4 +1,7 @@
 #include "GLExampleRenderer.h"
+#include "LambUI/UILog.h"
+#include <algorithm>
+#include <array>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -8,6 +11,7 @@
 using namespace LambUI;
 
 namespace {
+constexpr const char* TAG = "GLExampleRenderer";
 void SetGLColor(uint32_t packedRGBA) {
     const float r = static_cast<float>((packedRGBA >> 24) & 0xFF) / 255.0f;
     const float g = static_cast<float>((packedRGBA >> 16) & 0xFF) / 255.0f;
@@ -86,6 +90,9 @@ void GLExampleRenderer::DrawString(const UIRenderCommand& cmd) {
 }
 
 void GLExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>& commands) {
+    LAMBUI_LOGT(TAG, "SubmitRenderCommands({})", commands.size());
+    std::vector<std::array<GLint, 4>> clips;
+    glDisable(GL_SCISSOR_TEST);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     // Top-left origin, y-down, matching LambUI's screen-space convention.
@@ -108,15 +115,32 @@ void GLExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>&
                 break;
 
             case RenderCommandType::PushScissor: {
+                GLint left = static_cast<GLint>(cmd.x);
+                GLint bottom = m_viewportHeight - static_cast<GLint>(cmd.y + cmd.height);
+                GLint right = left + (std::max)(0, static_cast<GLint>(cmd.width));
+                GLint top = bottom + (std::max)(0, static_cast<GLint>(cmd.height));
+                if (!clips.empty()) {
+                    const auto& parent = clips.back();
+                    left = (std::max)(left, parent[0]);
+                    bottom = (std::max)(bottom, parent[1]);
+                    right = (std::min)(right, parent[0] + parent[2]);
+                    top = (std::min)(top, parent[1] + parent[3]);
+                }
+                clips.push_back({left, bottom, (std::max)(0, right - left), (std::max)(0, top - bottom)});
                 glEnable(GL_SCISSOR_TEST);
-                const int scissorY = m_viewportHeight - static_cast<int>(cmd.y + cmd.height);
-                glScissor(static_cast<int>(cmd.x), scissorY,
-                          static_cast<int>(cmd.width), static_cast<int>(cmd.height));
+                const auto& clip = clips.back();
+                glScissor(clip[0], clip[1], clip[2], clip[3]);
                 break;
             }
 
             case RenderCommandType::PopScissor:
-                glDisable(GL_SCISSOR_TEST);
+                if (!clips.empty()) clips.pop_back();
+                if (clips.empty()) {
+                    glDisable(GL_SCISSOR_TEST);
+                } else {
+                    const auto& clip = clips.back();
+                    glScissor(clip[0], clip[1], clip[2], clip[3]);
+                }
                 break;
 
             case RenderCommandType::CustomCallback:

@@ -1,8 +1,8 @@
-# LambUI TODO (as of 2026-09-30)
+# LambUI TODO (as of 2026-10-01)
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, Lua/sol2 bindings) is fully implemented and builds
-clean. Tests pass (8 GoogleTest cases). ~70% feature-complete vs goals.txt.
+clean. Tests pass (15 GoogleTest cases). ~70% feature-complete vs goals.txt.
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -27,15 +27,16 @@ See goals.txt for full architecture vision.
   - Note/follow-up: this is single-channel SDF (sharp corners can round
     slightly at large scale), not full multi-channel MSDF, and the Vulkan
     backend still has no quad/text rendering at all (see below) so it wasn't
-    touched here. True shader-based smoothstep sampling for GL/SDL3 would
-    need a bigger pipeline upgrade (GL 3+ core context+GLSL, or SDL3's GPU
-    API) - left as a lower-priority polish item if crisper edges are needed.
-- [ ] Scrollable containers
-  - No `UIScrollContainer`/`UIListBox` widget class.
-  - `UIManager::InjectMouseWheel` is a no-op stub (comment: "Reserved for
-    scrollable containers (not yet implemented)").
-  - No widget currently emits PushScissor/PopScissor even though the
-    command types + GL/SDL3 backend handling for them already work.
+    touched here. True shader-based smoothstep sampling is now demonstrated
+    in the separate OpenGL 3.3 example below; the legacy GL and SDL3
+    backends retain their original approximations.
+- [x] Scrollable containers
+  - `UIScrollContainer` pans explicit-size content, reclamps on viewport
+    layout changes, and emits balanced PushScissor/PopScissor commands.
+  - Hit testing excludes hidden/clipped descendants; wheel injection routes
+    to the nearest scrollable ancestor (positive pixel deltas move left/up).
+  - GL/SDL3 examples forward wheel input and intersect/restore nested clips.
+  - Full MSVC/Ninja build and all 15 tests pass (7 scroll-container tests).
 - [ ] Event bubbling
   - Events only fire on the leaf widget that was hit; unhandled events
     never propagate up to parent widgets (no bubbling phase at all).
@@ -43,6 +44,11 @@ See goals.txt for full architecture vision.
   - Swapchain + frame loop wired up, but `VulkanExampleRenderer::
     SubmitRenderCommands` only logs commands — no render pass/pipeline,
     no quad or text drawing implemented yet.
+- [ ] More compound widgets: ProgressBar, MenuBar, TabControl, TreeView,
+      context menu, tooltip system.
+- [ ] Multiple fonts
+  - allow for multiple fonts to be registered and text objects will contain
+    a font property
 
 ## Medium priority (common game UI patterns)
 - [ ] Expand Lua bindings: UIInputBox, UIDropDownBox, UICanvasWidget,
@@ -55,12 +61,19 @@ See goals.txt for full architecture vision.
   - Done as part of the SDF font work above: `FontAtlasTextMeasurer` is wired
     into both the GL and SDL3 examples via `UIManager`'s textMeasurer ctor
     arg, and `UITextWidget::SetText` auto-sizes against it.
-- [ ] More compound widgets: ProgressBar, MenuBar, TabControl, TreeView,
-      context menu, tooltip system.
 - [ ] Text wrapping + multiline text input (UIInputBox is single-line only).
 
 
 ## Lower priority (polish)
+- [x] Add a standalone OpenGL 3.3 shader example alongside existing examples
+      (user-requested, 2026-10-01).
+  - `examples/opengl33_glfw`: GLFW core context, pinned GLAD loader,
+    GLSL 330 / VAO / VBO renderer, textured quads, derivative-smoothed SDF
+    text, high-DPI nested scissors, and custom canvas commands.
+  - Animated contour shader with injected pause/resume and distortion
+    controls; existing examples and the core HAL remain unchanged.
+  - Full MSVC/Ninja build and all 15 CTest cases pass. Native GPU smoke
+    checks and screenshot inspection pass at 1100x720 and 420x720.
 - [ ] Animation/tween framework.
 - [ ] Keyboard navigation (Tab/Shift-Tab focus cycling, arrow keys).
 - [ ] Margin/padding system (currently only anchor point + offset).

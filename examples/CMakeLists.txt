@@ -1,9 +1,14 @@
 option(LAMBUI_EXAMPLE_OPENGL "Build the OpenGL (GLFW) LambUI example" ON)
+option(LAMBUI_EXAMPLE_OPENGL33 "Build the OpenGL 3.3 shader (GLFW) LambUI example" ON)
 option(LAMBUI_EXAMPLE_VULKAN "Build the Vulkan LambUI example" ON)
 option(LAMBUI_EXAMPLE_SDL3 "Build the SDL3 LambUI example" ON)
 
 if (LAMBUI_EXAMPLE_OPENGL)
     add_subdirectory(opengl_glfw)
+endif()
+
+if (LAMBUI_EXAMPLE_OPENGL33)
+    add_subdirectory(opengl33_glfw)
 endif()
 
 if (LAMBUI_EXAMPLE_VULKAN)

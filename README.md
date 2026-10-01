@@ -31,7 +31,7 @@ LambUI/
 
 Your engine implements `LambUI::IRenderer::SubmitRenderCommands()` and reads
 that flat vector to issue native draw calls. The library never calls into
-Vulkan/OpenGL/D3D12/etc. itself — see `examples/` for three different
+Vulkan/OpenGL/D3D12/etc. itself — see `examples/` for four different
 implementations of that one interface.
 
 ### How SOLID maps onto this codebase
@@ -59,9 +59,9 @@ implementations of that one interface.
 - Anchors must reference a widget that has *already* been positioned this
   pass (typically its parent or an earlier sibling) — there's no
   general dependency-graph solver for arbitrary forward references.
-- Text rendering has no real glyph pipeline yet; `DrawString` commands carry a
-  UTF-8 string and an opaque `fontHandle`, and each example renderer draws a
-  placeholder box. MSDF text (goals.txt item 5) is a follow-up.
+- Text rendering uses a single-channel SDF atlas for printable ASCII, not
+  full MSDF or Unicode shaping. The OpenGL 3.3 example samples it with
+  derivative-based `smoothstep`; legacy OpenGL and SDL3 use approximations.
 - The Vulkan example only brings up a window/swapchain/clear-color loop; it
   does not yet translate `UIRenderCommand`s into an actual pipeline (see the
   TODO in `examples/vulkan/src/VulkanExampleRenderer.cpp`). The OpenGL and
@@ -70,8 +70,10 @@ implementations of that one interface.
 ## Building
 
 Requires CMake 3.20+ and a C++17 compiler. All third-party dependencies
-(GoogleTest, GLFW, SDL3, sol2, Lua) are fetched on demand via `FetchContent` —
+(GoogleTest, GLFW, GLAD, SDL3, sol2, Lua) are fetched on demand via `FetchContent` —
 no vcpkg/Conan setup required.
+The OpenGL 3.3 example also requires Python 3 to generate its GLAD loader
+from the pinned, bundled OpenGL specification.
 
 ```powershell
 cmake -S . -B build -DLAMBUI_BUILD_EXAMPLES=ON -DLAMBUI_BUILD_TESTS=ON
@@ -91,7 +93,7 @@ to let CMake drive `msbuild` itself instead of Ninja.
 | `LAMBUI_BUILD_TESTS` | `ON` if top-level | Build the GoogleTest suite in `tests/` |
 | `LAMBUI_BUILD_LUA_BINDINGS` | `OFF` | Build `lua/` (sol2 + Lua, fetched on demand) |
 | `LAMBUI_INSTALL` | `ON` if top-level | Generate install/export targets |
-| `LAMBUI_EXAMPLE_OPENGL` / `_VULKAN` / `_SDL3` | `ON` | Toggle individual examples (Vulkan auto-skips if the SDK isn't found) |
+| `LAMBUI_EXAMPLE_OPENGL` / `_OPENGL33` / `_VULKAN` / `_SDL3` | `ON` | Toggle individual examples (Vulkan auto-skips if the SDK isn't found) |
 
 ### Consuming LambUI from another CMake project
 
@@ -110,15 +112,51 @@ Or, after `cmake --install`, via `find_package(LambUI REQUIRED)` and linking
 
 ## Examples
 
-Each example under `examples/` builds the *exact same* `LambUI::UIManager`
-demo widget tree (a panel with a button and a slider) and only swaps out the
-`IRenderer` implementation and the windowing/input glue:
+Each example under `examples/` builds a `LambUI::UIManager` demo widget tree
+with its own `IRenderer` implementation and windowing/input glue:
 
 - `lambui_example_opengl` — GLFW + legacy OpenGL 1.1 immediate mode (no
   loader dependency needed).
+- `lambui_example_opengl33` — GLFW + OpenGL 3.3 core, GLAD, VAO/VBO triangles,
+  and GLSL 330 shaders. An animated contour canvas has a distortion slider
+  and pause/resume button; labels use antialiased SDF text.
 - `lambui_example_sdl3` — SDL3 + its built-in 2D `SDL_Renderer` API.
 - `lambui_example_vulkan` — GLFW + Vulkan window/swapchain bring-up; drawing
   the widgets themselves is still TODO (see limitations above).
+
+### OpenGL 3.3 shader showcase
+
+```powershell
+cmake --build build --target lambui_example_opengl33
+.\build\examples\opengl33_glfw\lambui_example_opengl33.exe
+```
+
+Requires a driver supporting OpenGL 3.3 core. The legacy example remains
+available independently. The demo finds a common system font on Windows,
+Linux, or macOS; use `--font "path/to/font.ttf"` to select another font.
+Escape closes the window. Shader sources are embedded in
+[GL33ExampleRenderer.cpp](examples/opengl33_glfw/src/GL33ExampleRenderer.cpp).
+
+All graphics resources and input callbacks belong to the example. The canvas
+is drawn through `CustomCallback` in LambUI's command bucket; neither shader
+logic nor GLFW polling enters the core library. Text uses `GL_R8` sampling
+and `fwidth`/`smoothstep`. Nested scissors convert logical window coordinates
+to framebuffer pixels for high-DPI displays. Texture handles in this backend
+encode a `GLuint` through `uintptr_t`; one font atlas is supported.
+
+Run the bounded native GPU checks (requires a working desktop GL context):
+
+```powershell
+.\build\examples\opengl33_glfw\lambui_example_opengl33.exe --smoke-test --screenshot build/opengl33
+```
+
+This checks shader compilation/linking, SDF coverage, texture UV sampling,
+nested clipping, state recovery after a custom callback, injected button and
+slider input, and changing shader output at wide and compact window sizes.
+It exits nonzero on failure and optionally writes `*-desktop.ppm` and
+`*-compact.ppm` screenshots. These GPU checks are separate from CTest so the
+core tests remain runnable without a display. GL resources are released
+before the GLFW context is destroyed.
 
 ## Lua bindings
 

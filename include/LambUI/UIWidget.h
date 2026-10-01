@@ -54,6 +54,7 @@ public:
     bool IsVisible() const { return m_isVisible; }
     void SetMouseEnabled(bool enabled) { m_isMouseEnabled = enabled; }
     bool IsMouseEnabled() const { return m_isMouseEnabled; }
+    virtual bool ClipsChildren() const { return false; }
 
     const std::string& GetName() const { return m_name; }
     UIWidget* GetParent() const { return m_parent; }
@@ -67,6 +68,8 @@ public:
     bool IsDirty() const { return m_isDirty; }
 
 protected:
+    virtual void OnLayoutChanged() {}
+
     // Overridden by concrete widgets to react to state transitions (hover/press/etc).
     virtual void OnEvent(const UIEventData& /*data*/) {}
 

@@ -107,6 +107,7 @@ void UIWidget::ResolveLayout() {
                         previous.x, previous.y, previous.width, previous.height,
                         m_computedRect.x, m_computedRect.y, m_computedRect.width, m_computedRect.height);
             for (auto& child : m_children) child->MarkDirty();
+            OnLayoutChanged();
         }
     }
 

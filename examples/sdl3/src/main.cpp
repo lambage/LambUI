@@ -78,6 +78,13 @@ int main() {
                 case SDL_EVENT_MOUSE_MOTION:
                     uiManager.InjectMouseMove(event.motion.x, event.motion.y);
                     break;
+                case SDL_EVENT_MOUSE_WHEEL: {
+                    const float direction = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
+                    uiManager.InjectMouseMove(event.wheel.mouse_x, event.wheel.mouse_y);
+                    uiManager.InjectMouseWheel(event.wheel.x * direction * 20.0f,
+                                              event.wheel.y * direction * 20.0f);
+                    break;
+                }
                 case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 case SDL_EVENT_MOUSE_BUTTON_UP: {
                     MouseButton mapped = MouseButton::Left;
