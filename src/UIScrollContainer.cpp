@@ -85,7 +85,7 @@ protected:
 
 private:
     float GetViewportLength() const {
-        const auto& rect = m_owner.GetComputedRect();
+        const auto rect = m_owner.GetContentRect();
         return m_vertical ? rect.height : rect.width;
     }
 
@@ -152,7 +152,7 @@ void UIScrollContainer::SetScrollbarsEnabled(bool enabled) {
 
 void UIScrollContainer::UpdateScrollbars() {
     LAMBUI_LOGT(TAG, "'{}' UpdateScrollbars", GetName());
-    const auto& rect = GetComputedRect();
+    const auto rect = GetContentRect();
     const float width = std::max(0.0f, rect.width);
     const float height = std::max(0.0f, rect.height);
     const float thickness = std::min({12.0f, width, height});
@@ -177,7 +177,7 @@ void UIScrollContainer::OnScroll(float xOffset, float yOffset) {
 }
 
 void UIScrollContainer::ApplyScrollOffset() {
-    const UIRect& rect = GetComputedRect();
+    const auto rect = GetContentRect();
     const float maxScrollX = std::max(0.0f, m_contentWidth - rect.width);
     const float maxScrollY = std::max(0.0f, m_contentHeight - rect.height);
     m_scrollX = std::clamp(m_scrollX, 0.0f, maxScrollX);
@@ -191,7 +191,7 @@ void UIScrollContainer::ApplyScrollOffset() {
 
 void UIScrollContainer::EnsureVisible(const UIRect& target) {
     LAMBUI_LOGT(TAG, "'{}' EnsureVisible({}, {}, {}, {})", GetName(), target.x, target.y, target.width, target.height);
-    const auto& viewport = GetComputedRect();
+    const auto viewport = GetContentRect();
     const float width = std::max(0.0f, viewport.width - (m_scrollbarsEnabled && m_contentHeight > viewport.height ? 12.0f : 0.0f));
     const float height = std::max(0.0f, viewport.height - (m_scrollbarsEnabled && m_contentWidth > viewport.width ? 12.0f : 0.0f));
     float offsetX = m_scrollX;
@@ -211,17 +211,11 @@ void UIScrollContainer::OnLayoutChanged() {
 
 void UIScrollContainer::GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
     if (!IsVisible()) return;
+    AppendStyleShadow(bucket);
 
-    const UIRect& rect = GetComputedRect();
-    UIRenderCommand pushCmd;
-    pushCmd.type = RenderCommandType::PushScissor;
-    pushCmd.x = rect.x;
-    pushCmd.y = rect.y;
-    pushCmd.width = rect.width;
-    pushCmd.height = rect.height;
-    bucket.push_back(pushCmd);
-
-    UIWidget::GenerateRenderCommands(bucket);
+    const auto rect = GetContentRect();
+    GenerateOwnRenderCommands(bucket, &rect);
+    GenerateChildRenderCommands(bucket);
 
     UIRenderCommand popCmd;
     popCmd.type = RenderCommandType::PopScissor;

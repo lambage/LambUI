@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 
 namespace LambUI {
@@ -57,6 +58,37 @@ struct UIRect {
     float height = 0.0f;
 };
 
+struct UIInsets {
+    float left = 0.0f;
+    float top = 0.0f;
+    float right = 0.0f;
+    float bottom = 0.0f;
+};
+
+enum class UIFillPattern { Solid, Checkerboard, HorizontalStripes };
+
+inline const char* ToString(UIFillPattern pattern) {
+    switch (pattern) {
+        case UIFillPattern::Solid: return "Solid";
+        case UIFillPattern::Checkerboard: return "Checkerboard";
+        case UIFillPattern::HorizontalStripes: return "HorizontalStripes";
+    }
+    return "Unknown";
+}
+
+struct UIStyle {
+    std::optional<uint32_t> fillColor;
+    float cornerRadius = 0.0f;
+    UIFillPattern pattern = UIFillPattern::Solid;
+    uint32_t patternColor = 0xFFFFFFFFu;
+    float patternSize = 8.0f;
+    uint32_t shadowColor = 0x00000000u;
+    float shadowOffsetX = 0.0f;
+    float shadowOffsetY = 0.0f;
+    float shadowBlur = 0.0f;
+    float shadowSpread = 0.0f;
+};
+
 // Payload executed for RenderCommandType::CustomCallback (e.g. an embedded 3D viewport).
 struct UICustomRenderArgs {
     float viewportX = 0.0f;
@@ -110,6 +142,9 @@ namespace ScanCode {
     constexpr uint32_t Home = 0x106;
     constexpr uint32_t End = 0x107;
     constexpr uint32_t Delete = 0x108;
+    constexpr uint32_t LeftControl = 0x109;
+    constexpr uint32_t RightControl = 0x10A;
+    constexpr uint32_t A = 65;
 } // namespace ScanCode
 
 } // namespace LambUI

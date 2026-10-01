@@ -125,6 +125,7 @@ void UIDropDownBox::RebuildOptionButtons() {
 
 void UIDropDownBox::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
     const UIRect& rect = GetComputedRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
 
     UIRenderCommand background;
     background.type = RenderCommandType::DrawQuad;
@@ -132,16 +133,55 @@ void UIDropDownBox::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucke
     background.y = rect.y;
     background.width = rect.width;
     background.height = rect.height;
-    background.color = 0x404040FFu;
+    background.color = GetState() == ControlState::Pressed ? 0x30383FFFu :
+        (GetState() == ControlState::Hovered ? 0x4B555DFFu : 0x40484FFFu);
     bucket.push_back(background);
 
+    const auto quad = [&](float x, float y, float width, float height, uint32_t color) {
+        UIRenderCommand command;
+        command.x = x;
+        command.y = y;
+        command.width = width;
+        command.height = height;
+        command.color = color;
+        bucket.push_back(command);
+    };
+    const float stroke = std::min({1.0f, rect.width, rect.height});
+    const float arrowWidth = std::min(28.0f, rect.width);
+    const float arrowLeft = rect.x + rect.width - arrowWidth;
+    const uint32_t outline = HasKeyboardFocus() || m_isExpanded ? 0x67DBB3FFu :
+        (GetState() == ControlState::Hovered ? 0xAAB8C2FFu : 0x71808AFFu);
+    quad(arrowLeft, rect.y, arrowWidth, rect.height, 0x30383FFFu);
+    quad(rect.x, rect.y, rect.width, stroke, outline);
+    quad(rect.x, rect.y + rect.height - stroke, rect.width, stroke, outline);
+    quad(rect.x, rect.y, stroke, rect.height, outline);
+    quad(rect.x + rect.width - stroke, rect.y, stroke, rect.height, outline);
+    quad(arrowLeft, rect.y, stroke, rect.height, outline);
+    const float step = std::min({2.0f, arrowWidth / 8.0f, rect.height / 6.0f});
+    const float centerX = arrowLeft + arrowWidth * 0.5f;
+    const float centerY = rect.y + rect.height * 0.5f;
+    for (int index = 0; index < 3; ++index) {
+        const float arrowY = centerY + (m_isExpanded ? 0.5f - index : index - 1.5f) * step;
+        quad(centerX + (index - 3) * step, arrowY, step, step, 0xE5EBEFFFu);
+        quad(centerX + (2 - index) * step, arrowY, step, step, 0xE5EBEFFFu);
+    }
+
+    UIRenderCommand clip;
+    clip.type = RenderCommandType::PushScissor;
+    clip.x = rect.x + std::min(6.0f, rect.width - arrowWidth);
+    clip.y = rect.y + stroke;
+    clip.width = std::max(0.0f, arrowLeft - stroke - clip.x);
+    clip.height = std::max(0.0f, rect.height - stroke * 2);
+    bucket.push_back(clip);
     UIRenderCommand label;
     label.type = RenderCommandType::DrawString;
-    label.x = rect.x + 4.0f;
+    label.x = clip.x;
     label.y = rect.y + 4.0f;
     label.color = 0xFFFFFFFFu;
     label.text = GetSelectedOption();
     bucket.push_back(label);
+    clip.type = RenderCommandType::PopScissor;
+    bucket.push_back(clip);
 }
 
 } // namespace LambUI

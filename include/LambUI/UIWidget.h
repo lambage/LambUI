@@ -7,6 +7,7 @@
 #include "UITypes.h"
 
 #include <map>
+#include <limits>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -48,6 +49,19 @@ public:
     void ClearPoints();
     void BringToFront();
     void SetSize(float width, float height);
+    void SetMargin(UIInsets margin);
+    void SetPadding(UIInsets padding);
+    const UIInsets& GetMargin() const { return m_margin; }
+    const UIInsets& GetPadding() const { return m_padding; }
+    UIRect GetContentRect() const;
+    void SetMinSize(float width, float height);
+    void SetMaxSize(float width, float height);
+    void SetAspectRatio(float widthOverHeight);
+    float GetAspectRatio() const { return m_aspectRatio; }
+    void SetRelativeSize(float widthFraction, float heightFraction);
+    void SetStyle(const UIStyle& style);
+    void ClearStyle();
+    const std::optional<UIStyle>& GetStyle() const { return m_style; }
     const UIRect& GetComputedRect() const { return m_computedRect; }
 
     // --- Visibility / input state ---
@@ -58,6 +72,7 @@ public:
     void SetKeyboardEnabled(bool enabled);
     bool IsKeyboardEnabled() const { return m_isKeyboardEnabled; }
     virtual bool ClipsChildren() const { return false; }
+    virtual UIRect GetChildClipRect() const { return m_computedRect; }
     void SetTooltip(std::string text);
     const std::string& GetTooltip() const { return m_tooltip; }
 
@@ -87,6 +102,10 @@ protected:
     // container widgets that need to wrap their subtree (e.g.
     // UIScrollContainer emitting PushScissor/PopScissor around its content).
     virtual void GenerateRenderCommands(std::vector<UIRenderCommand>& bucket);
+    void AppendStyleShadow(std::vector<UIRenderCommand>& bucket) const;
+    void GenerateContentRenderCommands(std::vector<UIRenderCommand>& bucket);
+    void GenerateOwnRenderCommands(std::vector<UIRenderCommand>& bucket, const UIRect* contentClip = nullptr);
+    void GenerateChildRenderCommands(std::vector<UIRenderCommand>& bucket);
     void AppendChildRenderCommands(UIWidget& child, std::vector<UIRenderCommand>& bucket);
 
     const std::vector<std::unique_ptr<UIWidget>>& GetChildren() const { return m_children; }
@@ -118,10 +137,21 @@ private:
     UIRect m_computedRect;
     float m_width = 0.0f;
     float m_height = 0.0f;
+    UIInsets m_margin;
+    UIInsets m_padding;
+    std::optional<UIStyle> m_style;
+    float m_minWidth = 0.0f;
+    float m_minHeight = 0.0f;
+    float m_maxWidth = std::numeric_limits<float>::infinity();
+    float m_maxHeight = std::numeric_limits<float>::infinity();
+    float m_aspectRatio = 0.0f;
+    float m_relativeWidth = -1.0f;
+    float m_relativeHeight = -1.0f;
     bool m_isVisible = true;
     bool m_isMouseEnabled = true;
     bool m_isKeyboardEnabled = true;
     bool m_isDirty = true;
+    bool m_paddingChanged = false;
 };
 
 } // namespace LambUI

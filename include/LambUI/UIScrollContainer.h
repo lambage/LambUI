@@ -26,6 +26,7 @@ public:
     float GetScrollX() const { return m_scrollX; }
     float GetScrollY() const { return m_scrollY; }
     bool ClipsChildren() const override { return true; }
+    UIRect GetChildClipRect() const override { return GetContentRect(); }
 
     void SetScrollbarsEnabled(bool enabled);
     bool AreScrollbarsEnabled() const { return m_scrollbarsEnabled; }

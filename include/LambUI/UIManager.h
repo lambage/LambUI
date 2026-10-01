@@ -101,6 +101,8 @@ private:
     UIWidget* m_popupPreviousFocus = nullptr;
     bool m_leftShift = false;
     bool m_rightShift = false;
+    bool m_leftControl = false;
+    bool m_rightControl = false;
 };
 
 } // namespace LambUI

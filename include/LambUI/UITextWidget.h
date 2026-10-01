@@ -22,8 +22,11 @@ public:
     void* GetFont() const { return m_fontHandle; }
     void SetColor(uint32_t color) { m_color = color; MarkDirty(); }
 
-    // Optional: when set, the widget resizes itself to fit the text on change.
+    // Optional: unwrapped labels resize to fit the text on change.
     void SetTextMeasurer(const ITextMeasurer* measurer);
+
+    void SetWordWrap(bool enabled);
+    bool IsWordWrapEnabled() const { return m_wordWrap; }
 
 protected:
     void OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) override;
@@ -35,6 +38,7 @@ private:
     void* m_fontHandle = nullptr;
     uint32_t m_color = 0xFFFFFFFFu;
     const ITextMeasurer* m_textMeasurer = nullptr;
+    bool m_wordWrap = false;
 };
 
 } // namespace LambUI

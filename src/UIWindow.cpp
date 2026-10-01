@@ -272,12 +272,13 @@ void UIWindow::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
 }
 void UIWindow::GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
     if (!IsVisible()) return;
+    AppendStyleShadow(bucket);
     const auto& rect = GetComputedRect();
     UIRenderCommand clip;
     clip.type = RenderCommandType::PushScissor;
     clip.x = rect.x; clip.y = rect.y; clip.width = std::max(0.0f, rect.width); clip.height = std::max(0.0f, rect.height);
     bucket.push_back(clip);
-    UIWidget::GenerateRenderCommands(bucket);
+    GenerateContentRenderCommands(bucket);
     clip.type = RenderCommandType::PopScissor;
     bucket.push_back(clip);
 }

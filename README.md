@@ -54,6 +54,69 @@ implementations of that one interface.
   `dynamic_cast<IDraggable*>`/`dynamic_cast<IFocusable*>` rather than
   `UIManager` hardcoding those concrete types.
 
+### Layout and styling
+
+All widgets support `SetMargin(UIInsets)` and `SetPadding(UIInsets)`, in
+left/top/right/bottom order. Insets are nonnegative pixels. Parent anchors
+target the parent's padded `GetContentRect()`; sibling anchors target the
+sibling's outer rectangle. Margins move each widget anchor inward (center
+anchors use half the opposing-margin difference). `GetComputedRect()` and
+hit testing describe the outer box, excluding margins. Padding does not
+automatically move a widget's own text or decorations; it positions children.
+For compound controls, put application padding on their content/page widget.
+Scroll containers use their padded content box for scrolling and child clipping.
+
+`SetRelativeSize(widthFraction, heightFraction)` uses the parent's content
+size minus this widget's margins: `0.5f` means 50%; a negative axis keeps its
+explicit pixel size. `SetSize` returns both axes to pixel sizing. Opposing
+anchors still stretch and take precedence over either requested size.
+`SetMinSize`/`SetMaxSize` constrain the resulting outer box, including stretched
+boxes; minimum wins if limits conflict. Maximum defaults to infinity.
+`SetAspectRatio(width / height)` fits inside that box while respecting limits;
+zero disables it. If the ratio and limits are incompatible, limits win.
+When constraints change the solved size, the first registered anchor stays
+fixed. Relative sizing requires a parent; roots retain manager display sizes.
+The window-specific `SetSizeLimits` still governs normal-window operations;
+inherited min/max constraints also apply to minimized/maximized layout.
+
+```cpp
+auto* panel = manager.GetRoot().CreateChild<LambUI::UIWidget>("Panel");
+panel->SetPoint(LambUI::AnchorPoint::TopLeft, &manager.GetRoot(),
+                LambUI::AnchorPoint::TopLeft);
+panel->SetMargin({12, 12, 12, 12});
+panel->SetPadding({16, 12, 16, 12});
+panel->SetRelativeSize(0.5f, 0.5f);
+panel->SetMinSize(120, 80);
+panel->SetMaxSize(480, 320);
+panel->SetAspectRatio(1.5f);
+LambUI::UIStyle style;
+style.fillColor = 0x344A49FFu;
+style.cornerRadius = 8;
+style.pattern = LambUI::UIFillPattern::Checkerboard;
+style.patternColor = 0x3C5553FFu;
+style.patternSize = 12;
+style.shadowColor = 0x00000080u;
+style.shadowOffsetY = 4;
+style.shadowBlur = 6;
+panel->SetStyle(style);
+```
+
+Styles are opt-in values, not cascading rules. `ClearStyle()` restores the
+original rendering. A widget's first full-bounds quad is its background;
+styling replaces that quad, retaining its texture and UVs. Without one, a
+background is inserted. Leaving `fillColor` unset preserves state-dependent
+colors (such as button hover/press); an explicit color overrides them.
+Colors are packed RGBA. Patterns include solid, checkerboard, and horizontal
+stripes. Shadows support color, signed offsets, nonnegative spread and blur.
+Backgrounds/shadows use existing quad commands on all drawing backends:
+rounded edges are pixel-strip approximations, blur is an eight-layer falloff,
+not a Gaussian shader. Curves use at most 32 strips per corner half; pattern
+cells grow as needed to bound each axis to 64 cells. This trades extra commands
+for portability. Rounded backgrounds do not round child clipping or hit tests,
+and internal decorations remain unchanged. Shadows obey ancestor clips but
+sit outside their own container's clip. No graphics headers or HAL changes.
+The GL33/SDL3 Build tab demonstrates these APIs; Lua exposure remains pending.
+
 ### Event bubbling
 
 `UIWidget::FireEvent` dispatches to the target, then its logical parents up to
@@ -304,11 +367,101 @@ supported. Register fonts before assigning them to text widgets.
 Atlases are borrowed: keep them alive and unchanged while registered, and keep
 handle identities stable. Renderer instances own their uploaded textures and
 must be destroyed before their graphics context. Widgets borrow their measurer.
-Changing a text widget's font, text, or measurer recalculates its intrinsic
-size; explicit anchors still control final layout. Input fields retain their
+Changing an unwrapped text widget's font, text, or measurer recalculates its
+intrinsic size; explicit anchors still control final layout. Input fields retain their
 explicit size. Existing compound-control labels continue using the default
 font. Custom `IRenderer`/`ITextMeasurer` implementations must agree on handle
 mapping and fallback; the HAL has no new virtual methods.
+
+### Text wrapping and multiline input
+
+`UITextWidget` recognizes LF, CRLF, and CR line breaks, including empty and
+trailing lines. With a text measurer, unwrapped labels auto-size to the widest
+line and total line height. `SetWordWrap(true)` disables intrinsic resizing:
+assign a size or anchors, and text wraps within the resolved content width and
+clips to the content bounds. Resizing, padding, text, and font changes reflow
+the lines. Both text widgets and input fields honor their own padding.
+
+```cpp
+auto* description = manager.GetRoot().CreateChild<UITextWidget>("Description");
+description->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 20, 20);
+description->SetTextMeasurer(manager.GetTextMeasurer());
+description->SetWordWrap(true);
+description->SetSize(280, 80);
+description->SetText("Material details\nA longer description wraps within the assigned width.");
+
+auto* notes = manager.GetRoot().CreateChild<UIInputBox>("Notes");
+notes->SetPoint(AnchorPoint::TopLeft, description, AnchorPoint::BottomLeft, 0, 12);
+notes->SetSize(280, 120);
+notes->SetMultiline(true);
+notes->SetText("First line\nSecond line");
+```
+
+Inputs remain single-line by default. In multiline mode, Enter inserts LF and
+fires `OnTextChanged`, not `OnEnterPressed`; single-line Enter still submits.
+Forward Enter through `InjectKeyEvent`, not `InjectCharacter`. `SetText`
+normalizes CRLF/CR to LF in multiline mode and replaces line breaks with spaces
+in single-line mode; disabling multiline flattens existing text the same way.
+Programmatic setters do not fire editing events.
+
+Multiline inputs wrap by default; `SetWordWrap(false)` retains only explicit
+line breaks and permits horizontal caret scrolling. Home/End target visual
+line boundaries; Up/Down retain the preferred horizontal position across short
+lines. Left/Right, Backspace, and Delete remain UTF-8-codepoint aware, including
+joining lines by deleting a newline. The blinking caret scrolls into view both
+vertically and horizontally; Tab continues normal focus navigation.
+
+Wrapping prefers spaces/tabs and splits oversized words at UTF-8 codepoint
+boundaries. Whitespace is preserved; spaces at a full line's end may hang outside
+the clip without moving the wrapped caret out of bounds. Each visual line is a
+separate existing `DrawString` command, so backends need no new wrapping API.
+Measurement uses the selected font, or an 8px advance/16px line-height fallback.
+This does not add Unicode shaping, clipboard support, or scrollbars
+inside inputs. The GL33/SDL3 Controls tab includes wrapped material text and
+editable multiline notes.
+
+### Text selection
+
+`UIInputBox::SetEditingEnabled(false)` makes the field read-only;
+`IsEditingEnabled()` reports the flag, which defaults to true. It blocks typing,
+Backspace, Delete, and multiline Enter without clearing the current selection.
+Focus, pointer/keyboard navigation, selection, and application `SetText` updates
+remain available. Single-line Enter still fires `OnEnterPressed`, since it does
+not edit text. Re-enable editing with `SetEditingEnabled(true)`.
+
+Editing and selection are independent properties:
+
+```cpp
+notes->SetEditingEnabled(false);
+notes->SetSelectionEnabled(true);
+```
+
+`UIInputBox` enables selection by default in both single-line and multiline
+mode. `SetSelectionEnabled(false)` clears the range and disables user and
+programmatic selection without disabling editing or click-to-position.
+`IsSelectionEnabled()` reports the property. The Controls showcase exposes it
+through the notes field's **Select text** checkbox.
+
+- Click positions the caret; left-button drag selects using captured pointer
+  input. Shift-click extends from the existing anchor. Dragging outside the
+  field scrolls toward the pointer using injected `Update(deltaTime)` time.
+- Shift+Left/Right/Home/End/Up/Down extends the range using the same visual-line
+  layout as the caret. Unmodified Left/Right collapses a range to its start/end.
+- Ctrl+A selects all; Ctrl+Home/End goes to the document start/end, with Shift
+  extending selection. Forward both Control keys and `ScanCode::A`, as well as
+  both Shift keys, through `InjectKeyEvent`; all three native text examples do so.
+- Typing, Backspace, Delete, and multiline Enter replace/delete the selected
+  range and emit one `OnTextChanged` notification per edit.
+
+`SetSelection(anchor, cursor)` sets a directional range in UTF-8 byte offsets,
+clamped to the string and rounded down to codepoint boundaries. `SelectAll()`
+and `ClearSelection()` are convenience methods; `GetSelectionStart()` and
+`GetSelectionEnd()` return the ordered half-open range, and `GetSelectedText()`
+returns its contents. These setters do not fire text-change events. Selection
+persists across focus loss and is drawn with an inactive tint; focus loss or
+disabling selection cancels an active drag. Highlights are clipped HAL quads
+behind the text, including explicit blank lines. Static `UITextWidget` labels
+are not selectable; clipboard and Unicode grapheme/shaping support remain separate.
 
 ### Known limitations (by design, for now)
 

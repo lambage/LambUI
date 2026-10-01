@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, Lua/sol2 bindings) is fully implemented and builds
-clean. Tests pass (67 GoogleTest cases; optional Lua disabled in this build).
+clean. Tests pass (93 GoogleTest cases; optional Lua disabled in this build).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -115,25 +115,67 @@ See goals.txt for full architecture vision.
   - Four new regressions cover timing, editing, font metrics, UTF-8 fallback,
     clipping, tiny fields, and hidden focus. Full MSVC/Ninja build and all
     67 CTest cases pass. Native visual testing not run; Lua remains disabled.
-- [ ] Margin/padding system (currently only anchor point + offset).
-- [ ] Min/max size constraints, aspect-ratio preservation, relative
+- [x] Margin/padding system.
+  - Nonnegative per-edge UIInsets; parent anchors use padded content bounds,
+    margins offset widget anchors. Padding-only edits refresh child layout.
+  - Scroll ranges, scrollbar geometry, render clips, and injected child hits
+    use the padded viewport; default unpadded behavior remains unchanged.
+- [x] Min/max size constraints, aspect-ratio preservation, relative
       ("% of parent") sizing.
-- [ ] styling, rounded corners, shadows, fill colors/patterns    
+  - Base-widget min/max constrain explicit, relative, and stretched sizes;
+    minimum wins conflicting limits. Aspect ratio fits inside the solved box;
+    incompatible limits win over ratio, preserving the first anchor.
+  - Relative fractions use available parent content minus margins; SetSize
+    restores pixel sizing. README documents precedence and window limits.
+- [x] Styling, rounded corners, shadows, fill colors/patterns.
+  - Opt-in UIStyle/ClearStyle; optional background color preserves control
+    state colors when unset. Solid/checker/stripe fills retain texture UVs.
+  - Rounded pixel strips and layered shadow falloff emit existing HAL quads;
+    bounded tessellation, no renderer changes or core platform dependencies.
+    Background-only rounding; child clipping and hit tests stay rectangular.
+  - Shared GL33/SDL3 Build tab demonstrates padding, responsive constrained
+    sizing, patterned fills, rounded buttons, and shadows. Eight regressions;
+    full MSVC/Ninja build and all 75 CTest cases pass. Native smoke and capture
+    inspection pass at desktop/compact sizes in both backends; Lua disabled.
+
+- [x] Make dropdowns and tab headers more identifiable (user-requested).
+  - Dropdowns have a separated chevron area, up/down open-state indicator,
+    hover/press fills, focus/open outline, and clipped selected-label space.
+  - Tabs have a distinct header strip, separated/inset inactive headers,
+    selected top accent, inactive bottom edges, and keyboard-focus accent.
+    Existing page geometry and mouse/keyboard behavior are unchanged.
+  - Three new regressions cover state cues, selection, clipping, and tiny
+    bounds. Full MSVC/Ninja build and all 78 CTest cases pass; GL33/SDL3
+    desktop/compact native smoke and screenshot inspection pass. Lua disabled.
 
 ## Medium priority (common game UI patterns)
-- [ ] Expand Lua bindings: UIInputBox, UIDropDownBox, UICanvasWidget,
-      UIControl are not exposed to Lua yet (lua/src/LuaBindings.cpp only
-      covers Widget/Button/StatusBar/FontString/Texture).
-  - Also expose the new compound widgets, checkbox/radio/window APIs and
-    window events, and tooltip properties.
-  - `UI.CreateFrame` factory only supports "Frame", "Button", "StatusBar",
-    "EditBox" — missing "DropDown", "Canvas" etc.
 - [x] Implement `ITextMeasurer` concretely in at least one example backend
       (needed before text auto-sizing / wrapping can be tested end-to-end).
   - Done as part of the SDF font work above: `FontAtlasTextMeasurer` is wired
     into both the GL and SDL3 examples via `UIManager`'s textMeasurer ctor
     arg, and `UITextWidget::SetText` auto-sizes against it.
-- [ ] Text wrapping + multiline text input (UIInputBox is single-line only).
+- [x] Text wrapping + multiline text input.
+  - Shared UTF-8 line layout handles word wrapping, long words, explicit
+    CR/LF/CRLF breaks, and blank lines using selected-font metrics.
+  - UITextWidget SetWordWrap uses fixed content bounds with clipping;
+    unwrapped labels retain intrinsic multiline sizing.
+  - UIInputBox SetMultiline enables Enter/newline editing, visual-line
+    Home/End and Up/Down navigation, wrapping, and clipped caret scrolling.
+    Single-line submission remains the default; SetWordWrap can disable wrap.
+  - Seven regressions added. Full MSVC/Ninja build and all 85 CTest cases
+    pass; GL33/SDL3 desktop/compact native smoke and multiline screenshot
+    inspection pass. Controls tab demonstrates both widgets. Lua disabled.
+- [x] Text selection (enable/disable property on UIInputBox).
+  - Default-enabled click/drag and Shift selection, Ctrl+A, UTF-8 range APIs,
+    replacement editing, clipped highlights, and injected-time autoscrolling.
+  - Six regressions added. Full MSVC/Ninja build and all 91 CTest cases pass;
+    GL33/SDL3 desktop/compact smoke and selection captures pass. Lua disabled.
+- [x] Text input editing enable/disable property (user-requested).
+  - UIInputBox SetEditingEnabled/IsEditingEnabled defaults to enabled.
+    Read-only blocks user edits but retains selection, navigation, application
+    SetText updates, and single-line Enter submission. Selection is independent.
+  - Two regressions added. Full MSVC/Ninja build and all 93 CTest cases pass;
+    GL33/SDL3 desktop/compact read-only smoke checks pass. Lua disabled.
 - [ ] Vulkan renderer backend (examples/vulkan)
   - Swapchain + frame loop wired up, but `VulkanExampleRenderer::
     SubmitRenderCommands` only logs commands — no render pass/pipeline,
@@ -182,9 +224,18 @@ See goals.txt for full architecture vision.
   - Full MSVC/Ninja build and all 34 CTest cases pass.
 - [ ] Nested submenus and multiline tooltips.
 - [ ] Focus ring visualization; default-button Enter-key highlight.
-- [ ] Text selection / copy-paste.
+- [ ] Copy/paste and opt-in selection for static text labels.
 - [ ] Rendering perf: batching/instancing, texture atlas management,
       command buffer dirty-tracking (currently one draw call per command).
+- [ ] Expand Lua bindings: UIInputBox, UIDropDownBox, UICanvasWidget,
+      UIControl are not exposed to Lua yet (lua/src/LuaBindings.cpp only
+      covers Widget/Button/StatusBar/FontString/Texture).
+  - Also expose the new compound widgets, checkbox/radio/window APIs and
+    window events, and tooltip properties.
+  - Expose the base-widget margin/padding, size constraints, relative sizing,
+    aspect ratio, and UIStyle APIs.
+  - `UI.CreateFrame` factory only supports "Frame", "Button", "StatusBar",
+    "EditBox" — missing "DropDown", "Canvas" etc.      
 - [ ] Software renderer backend
   - user provides a custom framebuffer
 

@@ -292,6 +292,476 @@ TEST(InputCaret, TinyFieldsAndHiddenAncestorsCannotLeakCaret) {
     EXPECT_EQ(renderer->bucket.size(), 4u);
 }
 
+TEST(TextWrapping, ExplicitBreaksMeasureAndRenderBlankLines) {
+    FontTestMeasurer measurer;
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    auto* label = manager.GetRoot().CreateChild<UITextWidget>();
+    label->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    label->SetTextMeasurer(&measurer);
+    label->SetText("one\r\ntwo\n\n");
+    manager.Update(0);
+    manager.Render();
+    EXPECT_FLOAT_EQ(label->GetComputedRect().width, 18);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().height, 48);
+    ASSERT_EQ(renderer->bucket.size(), 4u);
+    EXPECT_EQ(renderer->bucket[0].text, "one");
+    EXPECT_EQ(renderer->bucket[1].text, "two");
+    EXPECT_EQ(renderer->bucket[2].text, "");
+    EXPECT_EQ(renderer->bucket[3].text, "");
+    EXPECT_FLOAT_EQ(renderer->bucket[3].y, 36);
+}
+
+TEST(TextWrapping, WrapsWordsReflowsWithBoundsAndPreservesUtf8) {
+    FontTestMeasurer measurer;
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    auto* label = manager.GetRoot().CreateChild<UITextWidget>();
+    label->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    label->SetWordWrap(true);
+    label->SetTextMeasurer(&measurer);
+    label->SetSize(24, 80);
+    label->SetText("one two");
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 4u);
+    EXPECT_EQ(renderer->bucket.front().type, RenderCommandType::PushScissor);
+    EXPECT_EQ(renderer->bucket[1].text, "one ");
+    EXPECT_EQ(renderer->bucket[2].text, "two");
+    EXPECT_FLOAT_EQ(renderer->bucket[2].y, 12);
+    EXPECT_EQ(renderer->bucket.back().type, RenderCommandType::PopScissor);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().width, 24);
+    label->SetSize(60, 80);
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 3u);
+    EXPECT_EQ(renderer->bucket[1].text, "one two");
+    label->SetTextMeasurer(nullptr);
+    label->SetText("\xc3\xa9\xf0\x9f\x98\x80!");
+    label->SetSize(8, 80);
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 5u);
+    EXPECT_EQ(renderer->bucket[1].text, "\xc3\xa9");
+    EXPECT_EQ(renderer->bucket[2].text, "\xf0\x9f\x98\x80");
+    EXPECT_EQ(renderer->bucket[3].text, "!");
+    label->SetSize(0, 0);
+    manager.Update(0);
+    manager.Render();
+    EXPECT_EQ(renderer->bucket.size(), 5u);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].width, 0);
+}
+
+TEST(MultilineInput, EnterEditsAndDeletionJoinsLinesWithoutSubmitting) {
+    UIManager manager(nullptr);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetSize(100, 80);
+    input->SetMultiline(true);
+    input->SetText("ab\r\ncd\r");
+    EXPECT_EQ(input->GetText(), "ab\ncd\n");
+    int changes = 0, submissions = 0;
+    input->RegisterCallback(UIEventType::OnTextChanged, [&](const UIEventData&) { ++changes; });
+    input->RegisterCallback(UIEventType::OnEnterPressed, [&](const UIEventData&) { ++submissions; });
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::Backspace, true);
+    manager.InjectKeyEvent(ScanCode::Home, true);
+    manager.InjectKeyEvent(ScanCode::Backspace, true);
+    EXPECT_EQ(input->GetText(), "abcd");
+    EXPECT_EQ(input->GetCursorPosition(), 2u);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectCharacter(U'\n');
+    EXPECT_EQ(input->GetText(), "ab\ncd");
+    EXPECT_EQ(changes, 3);
+    EXPECT_EQ(submissions, 0);
+    manager.InjectKeyEvent(ScanCode::Left, true);
+    manager.InjectKeyEvent(ScanCode::Delete, true);
+    EXPECT_EQ(input->GetText(), "abcd");
+    input->SetText("ab\ncd");
+    input->SetMultiline(false);
+    EXPECT_EQ(input->GetText(), "ab cd");
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    EXPECT_EQ(submissions, 1);
+    EXPECT_EQ(changes, 4);
+}
+
+TEST(MultilineInput, VerticalNavigationRetainsColumnAcrossShortLinesAndUtf8) {
+    UIManager manager(nullptr);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetSize(200, 100);
+    input->SetMultiline(true);
+    input->SetText("abcd\nx\n\xc3\xa9" "bcd");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.Update(0);
+    manager.InjectKeyEvent(ScanCode::Up, true);
+    EXPECT_EQ(input->GetCursorPosition(), 6u);
+    manager.InjectKeyEvent(ScanCode::Up, true);
+    EXPECT_EQ(input->GetCursorPosition(), 4u);
+    manager.InjectKeyEvent(ScanCode::Home, true);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    manager.InjectKeyEvent(ScanCode::Down, true);
+    manager.InjectKeyEvent(ScanCode::Down, true);
+    EXPECT_EQ(input->GetCursorPosition(), 9u);
+    manager.InjectCharacter(U'!');
+    EXPECT_EQ(input->GetText(), "abcd\nx\n\xc3\xa9!bcd");
+}
+
+TEST(MultilineInput, SoftLineNavigationAndCaretStayInsideScrolledViewport) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    auto measurer = std::make_shared<FontTestMeasurer>();
+    UIManager manager(renderer, measurer);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    input->SetMultiline(true);
+    input->SetSize(33, 28);
+    input->SetText("abcdefghij");
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 6u);
+    EXPECT_EQ(renderer->bucket[2].text, "abcd");
+    EXPECT_EQ(renderer->bucket[3].text, "efgh");
+    EXPECT_EQ(renderer->bucket[4].text, "ij");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 7u);
+    EXPECT_FLOAT_EQ(renderer->bucket[5].x, 16);
+    EXPECT_FLOAT_EQ(renderer->bucket[5].y, 12);
+    EXPECT_FLOAT_EQ(renderer->bucket[5].height, 12);
+    EXPECT_FLOAT_EQ(renderer->bucket[2].y, -12);
+    manager.InjectKeyEvent(ScanCode::Up, true);
+    EXPECT_EQ(input->GetCursorPosition(), 6u);
+    manager.InjectKeyEvent(ScanCode::End, true);
+    EXPECT_EQ(input->GetCursorPosition(), 8u);
+    manager.Render();
+    EXPECT_FLOAT_EQ(renderer->bucket[5].x, 28);
+    manager.InjectKeyEvent(ScanCode::Home, true);
+    EXPECT_EQ(input->GetCursorPosition(), 4u);
+    manager.InjectKeyEvent(ScanCode::Up, true);
+    EXPECT_EQ(input->GetCursorPosition(), 0u);
+    manager.Render();
+    EXPECT_FLOAT_EQ(renderer->bucket[5].y, 4);
+    input->SetWordWrap(false);
+    input->SetText("abcdef\n");
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 6u);
+    EXPECT_EQ(renderer->bucket[2].text, "abcdef");
+    EXPECT_EQ(renderer->bucket[3].text, "");
+    EXPECT_FLOAT_EQ(renderer->bucket[4].x, 4);
+}
+
+TEST(TextWrapping, BoundarySpacesStayWithPreviousLineWithoutShiftingCaret) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    input->SetSize(33, 60);
+    input->SetMultiline(true);
+    input->SetText("one   two");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.Update(0);
+    manager.InjectKeyEvent(ScanCode::Up, true);
+    manager.InjectKeyEvent(ScanCode::End, true);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 6u);
+    EXPECT_EQ(renderer->bucket[2].text, "one   ");
+    EXPECT_EQ(renderer->bucket[3].text, "two");
+    EXPECT_FLOAT_EQ(renderer->bucket[2].x, 4);
+    EXPECT_FLOAT_EQ(renderer->bucket[4].x, 28);
+    EXPECT_FLOAT_EQ(renderer->bucket[4].y, 4);
+    EXPECT_EQ(input->GetCursorPosition(), 6u);
+    EXPECT_EQ(input->GetText(), "one   two");
+}
+
+TEST(MultilineInput, FontPaddingAndResizingReflowWithoutFocus) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    auto measurer = std::make_shared<FontTestMeasurer>();
+    UIManager manager(renderer, measurer);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    input->SetMultiline(true);
+    input->SetSize(37, 80);
+    input->SetPadding({2, 3, 2, 3});
+    input->SetText("abcdef");
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 5u);
+    EXPECT_EQ(renderer->bucket[2].text, "abcd");
+    EXPECT_FLOAT_EQ(renderer->bucket[2].x, 6);
+    EXPECT_FLOAT_EQ(renderer->bucket[2].y, 7);
+    float alternateAdvance = 10.0f;
+    input->SetFont(&alternateAdvance);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 6u);
+    EXPECT_EQ(renderer->bucket[2].text, "ab");
+    EXPECT_EQ(renderer->bucket[2].fontHandle, &alternateAdvance);
+    EXPECT_FLOAT_EQ(renderer->bucket[3].y, 27);
+    input->SetSize(73, 80);
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 4u);
+    EXPECT_EQ(renderer->bucket[2].text, "abcdef");
+}
+
+TEST(TextSelection, ShiftNavigationReplacesUtf8AndDisablingPreventsSelection) {
+    UIManager manager(nullptr);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetSize(200, 80);
+    input->SetText("a\xc3\xa9" "bc");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    int changes = 0;
+    input->RegisterCallback(UIEventType::OnTextChanged, [&](const UIEventData&) { ++changes; });
+    manager.InjectKeyEvent(ScanCode::LeftShift, true);
+    manager.InjectKeyEvent(ScanCode::Left, true);
+    manager.InjectKeyEvent(ScanCode::Left, true);
+    manager.InjectKeyEvent(ScanCode::Left, true);
+    EXPECT_EQ(input->GetSelectedText(), "\xc3\xa9" "bc");
+    manager.InjectKeyEvent(ScanCode::LeftShift, false);
+    manager.InjectCharacter(U'!');
+    EXPECT_EQ(input->GetText(), "a!");
+    EXPECT_EQ(changes, 1);
+    EXPECT_EQ(input->GetSelectedText(), "");
+    manager.InjectKeyEvent(ScanCode::LeftControl, true);
+    manager.InjectKeyEvent(ScanCode::A, true);
+    manager.InjectKeyEvent(ScanCode::LeftControl, false);
+    EXPECT_EQ(input->GetSelectedText(), "a!");
+    input->SetSelectionEnabled(false);
+    EXPECT_FALSE(input->IsSelectionEnabled());
+    EXPECT_EQ(input->GetSelectedText(), "");
+    input->SelectAll();
+    manager.InjectKeyEvent(ScanCode::LeftShift, true);
+    manager.InjectKeyEvent(ScanCode::Home, true);
+    manager.InjectKeyEvent(ScanCode::LeftShift, false);
+    EXPECT_EQ(input->GetSelectedText(), "");
+    manager.InjectCharacter(U'X');
+    EXPECT_EQ(input->GetText(), "Xa!");
+}
+
+TEST(TextSelection, MultilineRangeHighlightsAndDeletesWithOneNotification) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    input->SetSize(120, 80);
+    input->SetMultiline(true);
+    input->SetText("ab\n\ncd");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    input->SetSelection(1, 5);
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 10u);
+    EXPECT_EQ(renderer->bucket[1].type, RenderCommandType::PushScissor);
+    EXPECT_EQ(renderer->bucket[2].type, RenderCommandType::DrawQuad);
+    EXPECT_EQ(renderer->bucket[3].type, RenderCommandType::DrawQuad);
+    EXPECT_FLOAT_EQ(renderer->bucket[3].width, 4);
+    EXPECT_FLOAT_EQ(renderer->bucket[4].y, 36);
+    EXPECT_EQ(renderer->bucket[5].type, RenderCommandType::DrawString);
+    EXPECT_EQ(input->GetSelectedText(), "b\n\nc");
+    int changes = 0;
+    input->RegisterCallback(UIEventType::OnTextChanged, [&](const UIEventData&) { ++changes; });
+    manager.InjectKeyEvent(ScanCode::Delete, true);
+    EXPECT_EQ(input->GetText(), "ad");
+    EXPECT_EQ(changes, 1);
+    input->SetSelection(2, 0);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    EXPECT_EQ(input->GetText(), "\n");
+    EXPECT_EQ(changes, 2);
+    input->SelectAll();
+    manager.InjectKeyEvent(ScanCode::Backspace, true);
+    EXPECT_EQ(input->GetText(), "");
+    EXPECT_EQ(changes, 3);
+}
+
+TEST(TextSelection, MouseDragAndShiftClickUseMeasuredLinesAndCapture) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    auto measurer = std::make_shared<FontTestMeasurer>();
+    UIManager manager(renderer, measurer);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    input->SetSize(60, 50);
+    input->SetPadding({2, 2, 2, 2});
+    input->SetMultiline(true);
+    input->SetText("abcd\nefgh");
+    manager.Update(0);
+    manager.Render();
+    manager.InjectMouseMove(12, 8);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    EXPECT_EQ(input->GetCursorPosition(), 1u);
+    manager.InjectMouseMove(18, 20);
+    EXPECT_EQ(input->GetSelectedText(), "bcd\nef");
+    manager.InjectMouseButton(MouseButton::Right, false);
+    manager.InjectMouseMove(200, 200);
+    EXPECT_EQ(input->GetSelectedText(), "bcd\nefgh");
+    manager.InjectMouseButton(MouseButton::Left, false);
+    manager.InjectMouseMove(6, 8);
+    EXPECT_EQ(input->GetSelectedText(), "bcd\nefgh");
+    manager.InjectKeyEvent(ScanCode::LeftShift, true);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    manager.InjectKeyEvent(ScanCode::LeftShift, false);
+    EXPECT_EQ(input->GetSelectedText(), "a");
+    input->SetSelectionEnabled(false);
+    manager.InjectMouseMove(12, 8);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseMove(200, 200);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(input->GetCursorPosition(), 1u);
+    EXPECT_EQ(input->GetSelectedText(), "");
+}
+
+TEST(TextSelection, MouseUsesVisibleScrollOffsetAndUtf8Boundaries) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    input->SetSize(33, 40);
+    input->SetText("abcd\xc3\xa9");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.Update(0);
+    manager.Render();
+    manager.InjectMouseMove(4, 8);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    EXPECT_EQ(input->GetCursorPosition(), 2u);
+    manager.InjectMouseMove(28, 8);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(input->GetSelectedText(), "cd\xc3\xa9");
+    input->SetSelection(5, 1000);
+    EXPECT_EQ(input->GetSelectionStart(), 4u);
+    EXPECT_EQ(input->GetSelectionEnd(), 6u);
+    EXPECT_EQ(input->GetSelectedText(), "\xc3\xa9");
+    manager.InjectKeyEvent(ScanCode::Left, true);
+    EXPECT_EQ(input->GetCursorPosition(), 4u);
+    EXPECT_EQ(input->GetSelectedText(), "");
+}
+
+TEST(TextSelection, WrappedShiftNavigationAndHeldModifiersSurviveFocusChange) {
+    UIManager manager(nullptr);
+    auto* first = manager.GetRoot().CreateChild<UIInputBox>();
+    auto* second = manager.GetRoot().CreateChild<UIInputBox>();
+    first->SetSize(41, 80);
+    second->SetSize(41, 80);
+    second->SetMultiline(true);
+    second->SetText("abcdefghij");
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::LeftShift, true);
+    manager.InjectKeyEvent(ScanCode::RightShift, true);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    EXPECT_EQ(manager.GetFocusedWidget(), second);
+    manager.InjectKeyEvent(ScanCode::LeftShift, false);
+    manager.InjectKeyEvent(ScanCode::Up, true);
+    EXPECT_EQ(second->GetSelectedText(), "ghij");
+    manager.InjectKeyEvent(ScanCode::Home, true);
+    EXPECT_EQ(second->GetSelectedText(), "efghij");
+    manager.InjectKeyEvent(ScanCode::RightShift, false);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    EXPECT_EQ(second->GetCursorPosition(), 10u);
+    EXPECT_EQ(second->GetSelectedText(), "");
+    manager.InjectKeyEvent(ScanCode::LeftControl, true);
+    manager.InjectKeyEvent(ScanCode::LeftShift, true);
+    manager.InjectKeyEvent(ScanCode::Home, true);
+    EXPECT_EQ(second->GetSelectedText(), "abcdefghij");
+    manager.InjectKeyEvent(ScanCode::LeftShift, false);
+    manager.InjectKeyEvent(ScanCode::LeftControl, false);
+}
+
+TEST(TextSelection, DragAutoscrollUsesInjectedTimeAndStopsOnFocusLoss) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    input->SetMultiline(true);
+    input->SetSize(80, 40);
+    input->SetText("a\nb\nc\nd\ne\nf");
+    manager.Update(0);
+    manager.Render();
+    manager.InjectMouseMove(4, 8);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseMove(12, 42);
+    const size_t initial = input->GetCursorPosition();
+    manager.Update(0.1f);
+    EXPECT_GT(input->GetCursorPosition(), initial);
+    manager.Render();
+    size_t highlights = 0;
+    for (const auto& command : renderer->bucket)
+        if (command.type == RenderCommandType::DrawQuad && command.color == 0x287EA8FFu) ++highlights;
+    EXPECT_GT(highlights, 1u);
+    input->SetKeyboardEnabled(false);
+    manager.Update(0);
+    const size_t stopped = input->GetCursorPosition();
+    manager.Update(0.1f);
+    manager.InjectMouseMove(12, 1000);
+    EXPECT_EQ(input->GetCursorPosition(), stopped);
+}
+
+TEST(InputEditing, ReadOnlyBlocksUserEditsButPreservesSelectionAndSubmission) {
+    for (bool multiline : {false, true}) {
+        UIManager manager(nullptr);
+        auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+        input->SetSize(160, 80);
+        input->SetMultiline(multiline);
+        input->SetText(multiline ? "first\nsecond" : "single line");
+        const std::string original = input->GetText();
+        EXPECT_TRUE(input->IsEditingEnabled());
+        manager.InjectKeyEvent(ScanCode::Tab, true);
+        int changes = 0, submissions = 0;
+        input->RegisterCallback(UIEventType::OnTextChanged, [&](const UIEventData&) { ++changes; });
+        input->RegisterCallback(UIEventType::OnEnterPressed, [&](const UIEventData&) { ++submissions; });
+        input->SelectAll();
+        input->SetEditingEnabled(false);
+        EXPECT_FALSE(input->IsEditingEnabled());
+        EXPECT_TRUE(input->IsSelectionEnabled());
+        manager.InjectCharacter(U'X');
+        manager.InjectKeyEvent(ScanCode::Backspace, true);
+        manager.InjectKeyEvent(ScanCode::Delete, true);
+        manager.InjectKeyEvent(ScanCode::Enter, true);
+        input->AppendCharacter(U'Y');
+        input->Backspace();
+        input->SubmitEnter();
+        EXPECT_EQ(input->GetText(), original);
+        EXPECT_EQ(input->GetSelectedText(), original);
+        EXPECT_EQ(changes, 0);
+        EXPECT_EQ(submissions, multiline ? 0 : 2);
+        EXPECT_EQ(manager.GetFocusedWidget(), input);
+        input->SetEditingEnabled(true);
+        manager.InjectCharacter(U'!');
+        EXPECT_EQ(input->GetText(), "!");
+        EXPECT_EQ(input->GetSelectedText(), "");
+        EXPECT_EQ(changes, 1);
+    }
+}
+
+TEST(InputEditing, ReadOnlyAllowsNavigationSelectionAndProgrammaticText) {
+    UIManager manager(nullptr);
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    input->SetSize(160, 80);
+    input->SetText("abcd");
+    input->SetEditingEnabled(false);
+    manager.Update(0);
+    manager.InjectMouseMove(12, 8);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseMove(28, 8);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(input->GetSelectedText(), "bc");
+    manager.InjectKeyEvent(ScanCode::Left, true);
+    EXPECT_EQ(input->GetCursorPosition(), 1u);
+    manager.InjectKeyEvent(ScanCode::LeftShift, true);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    manager.InjectKeyEvent(ScanCode::LeftShift, false);
+    EXPECT_EQ(input->GetSelectedText(), "b");
+    input->SetSelectionEnabled(false);
+    manager.InjectKeyEvent(ScanCode::Home, true);
+    manager.InjectKeyEvent(ScanCode::Delete, true);
+    EXPECT_EQ(input->GetText(), "abcd");
+    EXPECT_EQ(input->GetCursorPosition(), 0u);
+    EXPECT_EQ(input->GetSelectedText(), "");
+    input->SetText("updated");
+    EXPECT_EQ(input->GetText(), "updated");
+    EXPECT_FALSE(input->IsEditingEnabled());
+    input->SetEditingEnabled(true);
+    manager.InjectKeyEvent(ScanCode::Backspace, true);
+    EXPECT_EQ(input->GetText(), "update");
+    EXPECT_FALSE(input->IsSelectionEnabled());
+}
+
 TEST(WindowWidget, InjectedMoveResizeLimitsAndLocks) {
     UIManager manager(nullptr);
     manager.SetDisplaySize(800, 600);
@@ -875,4 +1345,99 @@ TEST_F(CompoundWidgets, HiddenTabInputDoesNotReceiveCharactersAndPopupInputDoes)
     EXPECT_EQ(popupInput->GetText(), "x");
     manager.InjectKeyEvent(ScanCode::Backspace, true);
     EXPECT_EQ(popupInput->GetText(), "");
+}
+
+TEST_F(CompoundWidgets, DropdownChevronFlipsAndLabelCannotCoverIndicator) {
+    auto* dropdown = manager.GetRoot().CreateChild<UIDropDownBox>("IdentifiableDropdown");
+    dropdown->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    dropdown->SetSize(160, 28);
+    dropdown->SetOptions({"A long selected option that must not obscure the arrow", "Other"});
+    manager.Update(0);
+    manager.Render();
+    std::vector<UIRenderCommand> arrow;
+    bool labelClipped = false;
+    for (const auto& command : renderer->bucket) {
+        if (command.type == RenderCommandType::DrawQuad && command.color == 0xE5EBEFFFu) arrow.push_back(command);
+        if (command.type == RenderCommandType::PushScissor) {
+            EXPECT_LE(command.x + command.width, 132);
+            labelClipped = true;
+        }
+        if (command.type == RenderCommandType::DrawString) EXPECT_TRUE(labelClipped);
+        if (command.type == RenderCommandType::PopScissor) labelClipped = false;
+    }
+    ASSERT_EQ(arrow.size(), 6u);
+    EXPECT_LT(arrow.front().y, arrow.back().y);
+    EXPECT_GE(arrow.front().x, 132);
+    Click(146, 14);
+    ASSERT_TRUE(dropdown->IsExpanded());
+    manager.Render();
+    arrow.clear();
+    bool focusedOutline = false;
+    for (const auto& command : renderer->bucket) {
+        if (command.type == RenderCommandType::DrawQuad && command.color == 0xE5EBEFFFu) arrow.push_back(command);
+        focusedOutline |= command.type == RenderCommandType::DrawQuad && command.color == 0x67DBB3FFu;
+    }
+    ASSERT_EQ(arrow.size(), 6u);
+    EXPECT_GT(arrow.front().y, arrow.back().y);
+    EXPECT_TRUE(focusedOutline);
+    Click(12, 64);
+    EXPECT_EQ(dropdown->GetSelectedIndex(), 1);
+    EXPECT_FALSE(dropdown->IsExpanded());
+}
+
+TEST_F(CompoundWidgets, TabsHaveSeparatedHeadersAndAccentTracksSelection) {
+    auto* tabs = manager.GetRoot().CreateChild<UITabControl>("IdentifiableTabs");
+    tabs->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    tabs->SetSize(200, 100);
+    tabs->AddTab("First long tab label");
+    tabs->AddTab("Second");
+    manager.Update(0);
+    for (int selected = 0; selected < 2; ++selected) {
+        tabs->SetSelectedIndex(selected);
+        manager.Render();
+        int accents = 0;
+        int inactiveEdges = 0;
+        for (const auto& command : renderer->bucket) {
+            if (command.type != RenderCommandType::DrawQuad) continue;
+            if (command.color == 0x67DBB3FFu) {
+                ++accents;
+                EXPECT_FLOAT_EQ(command.x, selected * 100.0f + 1);
+                EXPECT_FLOAT_EQ(command.y, 0);
+                EXPECT_FLOAT_EQ(command.width, 98);
+                EXPECT_FLOAT_EQ(command.height, 2);
+            }
+            if (command.color == 0x71808AFFu) {
+                ++inactiveEdges;
+                EXPECT_FLOAT_EQ(command.y, 26);
+            }
+        }
+        EXPECT_EQ(accents, 1);
+        EXPECT_EQ(inactiveEdges, 1);
+        EXPECT_FLOAT_EQ(tabs->GetPage(selected)->GetComputedRect().y, 28);
+    }
+}
+
+TEST_F(CompoundWidgets, DropdownAndTabDecorationsStayInsideTinyBounds) {
+    auto* dropdown = manager.GetRoot().CreateChild<UIDropDownBox>();
+    dropdown->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    dropdown->SetOptions({"Long option"});
+    auto* tabs = manager.GetRoot().CreateChild<UITabControl>();
+    tabs->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    tabs->AddTab("Long tab");
+    tabs->AddTab("Second");
+    for (float size : {0.0f, 0.5f, 2.0f, 8.0f}) {
+        dropdown->SetSize(size, size);
+        tabs->SetSize(size, size);
+        manager.Update(0);
+        manager.Render();
+        for (const auto& command : renderer->bucket) {
+            if (command.type != RenderCommandType::DrawQuad && command.type != RenderCommandType::PushScissor) continue;
+            EXPECT_GE(command.x, 0);
+            EXPECT_GE(command.y, 0);
+            EXPECT_GE(command.width, 0);
+            EXPECT_GE(command.height, 0);
+            EXPECT_LE(command.x + command.width, size);
+            EXPECT_LE(command.y + command.height, size);
+        }
+    }
 }

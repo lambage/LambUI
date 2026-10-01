@@ -65,6 +65,9 @@ void InstallInput(GLFWwindow* window, UIManager& manager) {
         else if (key == GLFW_KEY_TAB) scanCode = ScanCode::Tab;
         else if (key == GLFW_KEY_LEFT_SHIFT) scanCode = ScanCode::LeftShift;
         else if (key == GLFW_KEY_RIGHT_SHIFT) scanCode = ScanCode::RightShift;
+        else if (key == GLFW_KEY_LEFT_CONTROL) scanCode = ScanCode::LeftControl;
+        else if (key == GLFW_KEY_RIGHT_CONTROL) scanCode = ScanCode::RightControl;
+        else if (key == GLFW_KEY_A) scanCode = ScanCode::A;
         else if (key == GLFW_KEY_LEFT) scanCode = ScanCode::Left;
         else if (key == GLFW_KEY_RIGHT) scanCode = ScanCode::Right;
         else if (key == GLFW_KEY_UP) scanCode = ScanCode::Up;

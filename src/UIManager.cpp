@@ -181,7 +181,7 @@ void UIManager::UpdateHover(float x, float y) {
 UIWidget* UIManager::HitTestRecursive(UIWidget& widget, float x, float y) const {
     if (!widget.IsVisible()) return nullptr;
     if (widget.ClipsChildren()) {
-        const UIRect& rect = widget.GetComputedRect();
+        const UIRect rect = widget.GetChildClipRect();
         if (rect.width <= 0.0f || rect.height <= 0.0f ||
             x < rect.x || x >= rect.x + rect.width ||
             y < rect.y || y >= rect.y + rect.height) {
@@ -264,6 +264,10 @@ void UIManager::SetFocusedWidget(UIWidget* widget) {
     if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) focusable->OnFocusLost();
     m_focusedWidget = widget;
     if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) focusable->OnFocusGained();
+    if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget)) {
+        input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
+        input->UpdateCaret(0, m_textMeasurer.get());
+    }
     if (!widget) return;
     m_root->ResolveLayout();
     m_overlayRoot->ResolveLayout();
@@ -305,6 +309,14 @@ void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
     ResetTooltip();
     if (scanCode == ScanCode::LeftShift || scanCode == ScanCode::RightShift) {
         (scanCode == ScanCode::LeftShift ? m_leftShift : m_rightShift) = isDown;
+        if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget))
+            input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
+        return;
+    }
+    if (scanCode == ScanCode::LeftControl || scanCode == ScanCode::RightControl) {
+        (scanCode == ScanCode::LeftControl ? m_leftControl : m_rightControl) = isDown;
+        if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget))
+            input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
         return;
     }
     if (!CanFocusWidget(m_focusedWidget)) SetFocusedWidget(nullptr);
@@ -365,9 +377,12 @@ void UIManager::Update(float deltaTime) {
     }
     if (!m_pressedWidget) UpdateHover(m_mouseX, m_mouseY);
     UpdateTooltip(deltaTime);
-    if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget)) {
-        input->UpdateCaret(deltaTime, m_textMeasurer.get());
-    }
+    const auto updateInputs = [&](auto&& visit, UIWidget& widget) -> void {
+        if (auto* input = dynamic_cast<UIInputBox*>(&widget)) input->UpdateCaret(deltaTime, m_textMeasurer.get());
+        for (const auto& child : widget.GetChildren()) visit(visit, *child);
+    };
+    updateInputs(updateInputs, *m_root);
+    updateInputs(updateInputs, *m_overlayRoot);
 }
 
 void UIManager::Render() {

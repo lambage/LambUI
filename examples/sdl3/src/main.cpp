@@ -224,6 +224,9 @@ int RunExample(SDL_Window* window, SDL_Renderer* sdlRenderer, const std::string&
                         case SDLK_TAB: scanCode = ScanCode::Tab; break;
                         case SDLK_LSHIFT: scanCode = ScanCode::LeftShift; break;
                         case SDLK_RSHIFT: scanCode = ScanCode::RightShift; break;
+                        case SDLK_LCTRL: scanCode = ScanCode::LeftControl; break;
+                        case SDLK_RCTRL: scanCode = ScanCode::RightControl; break;
+                        case SDLK_A: scanCode = ScanCode::A; break;
                         case SDLK_LEFT: scanCode = ScanCode::Left; break;
                         case SDLK_RIGHT: scanCode = ScanCode::Right; break;
                         case SDLK_UP: scanCode = ScanCode::Up; break;

@@ -78,22 +78,38 @@ void UITabControl::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket
     background.height = std::max(0.0f, rect.height);
     background.color = 0x303030FFu;
     bucket.push_back(background);
-    if (m_tabs.empty()) return;
+    if (m_tabs.empty() || background.width <= 0 || background.height <= 0) return;
     const float width = background.width / static_cast<float>(m_tabs.size());
+    const float height = std::min(HeaderHeight, background.height);
+    UIRenderCommand strip = background;
+    strip.height = height;
+    strip.color = 0x20262BFFu;
+    bucket.push_back(strip);
     for (size_t index = 0; index < m_tabs.size(); ++index) {
+        const bool selected = static_cast<int>(index) == m_selectedIndex;
+        const float gap = std::min(1.0f, width * 0.25f);
+        const float topInset = selected ? 0.0f : std::min(3.0f, height);
         UIRenderCommand header;
-        header.x = rect.x + static_cast<float>(index) * width;
-        header.y = rect.y;
-        header.width = width;
-        header.height = std::min(HeaderHeight, background.height);
-        header.color = static_cast<int>(index) == m_selectedIndex ? 0x707070FFu : 0x404040FFu;
+        header.x = rect.x + static_cast<float>(index) * width + gap;
+        header.y = rect.y + topInset;
+        header.width = std::max(0.0f, width - gap * 2);
+        header.height = height - topInset;
+        header.color = selected ? 0x4B555DFFu : 0x343D44FFu;
         bucket.push_back(header);
+        UIRenderCommand edge = header;
+        edge.height = std::min(2.0f, header.height);
+        edge.y = selected ? rect.y : rect.y + height - edge.height;
+        edge.color = selected ? (HasKeyboardFocus() ? 0xB9F4DDFFu : 0x67DBB3FFu) : 0x71808AFFu;
+        bucket.push_back(edge);
         header.type = RenderCommandType::PushScissor;
+        header.x += std::min(6.0f, header.width);
+        header.width = std::max(0.0f, header.width - 12.0f);
+        header.y = rect.y;
+        header.height = height;
         bucket.push_back(header);
         header.type = RenderCommandType::DrawString;
-        header.x += 6.0f;
         header.y += 4.0f;
-        header.color = 0xFFFFFFFFu;
+        header.color = selected ? 0xFFFFFFFFu : 0xC3CDD4FFu;
         header.text = m_tabs[index].label;
         bucket.push_back(header);
         UIRenderCommand pop;
@@ -104,6 +120,7 @@ void UITabControl::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket
 
 void UITabControl::GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
     if (!IsVisible()) return;
+    AppendStyleShadow(bucket);
     const auto& rect = GetComputedRect();
     UIRenderCommand clip;
     clip.type = RenderCommandType::PushScissor;
@@ -112,7 +129,7 @@ void UITabControl::GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) 
     clip.width = std::max(0.0f, rect.width);
     clip.height = std::max(0.0f, rect.height);
     bucket.push_back(clip);
-    UIWidget::GenerateRenderCommands(bucket);
+    GenerateContentRenderCommands(bucket);
     clip.type = RenderCommandType::PopScissor;
     bucket.push_back(clip);
 }
