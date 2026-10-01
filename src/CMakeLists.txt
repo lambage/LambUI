@@ -32,6 +32,7 @@ add_library(lambui
     UITextureWidget.cpp
     UITextWidget.cpp
     UICanvasWidget.cpp
+    UIScrollContainer.cpp
     UIFontAtlas.cpp
     UILog.cpp
     UIManager.cpp

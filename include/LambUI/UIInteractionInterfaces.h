@@ -24,4 +24,12 @@ public:
     virtual void OnKeyEvent(uint32_t scanCode, bool isDown) = 0;
 };
 
+// Implemented by widgets that want mouse-wheel input when the pointer is
+// over them or one of their descendants (e.g. UIScrollContainer).
+class LAMBUI_API IScrollable {
+public:
+    virtual ~IScrollable() = default;
+    virtual void OnScroll(float xOffset, float yOffset) = 0;
+};
+
 } // namespace LambUI

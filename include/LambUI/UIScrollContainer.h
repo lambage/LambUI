@@ -1,0 +1,44 @@
+#pragma once
+
+#include "lambui_export.h"
+#include "UIInteractionInterfaces.h"
+#include "UIWidget.h"
+
+namespace LambUI {
+
+// A fixed-size clipped viewport onto an internal "content" widget that can be
+// larger than the viewport; mouse-wheel input pans the content, and
+// PushScissor/PopScissor clip anything outside the viewport rect. Widgets
+// meant to scroll must be created as children of GetContent(), not of the
+// container itself.
+class LAMBUI_API UIScrollContainer : public UIWidget, public IScrollable {
+public:
+    explicit UIScrollContainer(std::string name = {});
+
+    UIWidget* GetContent() { return m_content; }
+
+    // Explicit size of the pannable content area (no auto-measurement from
+    // children bounds - matches the rest of the library's explicit-size model).
+    void SetContentSize(float width, float height);
+
+    void SetScrollOffset(float x, float y);
+    float GetScrollX() const { return m_scrollX; }
+    float GetScrollY() const { return m_scrollY; }
+
+    // IScrollable: called by UIManager::InjectMouseWheel.
+    void OnScroll(float xOffset, float yOffset) override;
+
+protected:
+    void GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) override;
+
+private:
+    void ApplyScrollOffset();
+
+    UIWidget* m_content = nullptr;
+    float m_contentWidth = 0.0f;
+    float m_contentHeight = 0.0f;
+    float m_scrollX = 0.0f;
+    float m_scrollY = 0.0f;
+};
+
+} // namespace LambUI

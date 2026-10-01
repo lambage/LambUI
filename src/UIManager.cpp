@@ -105,8 +105,15 @@ void UIManager::InjectMouseButton(MouseButton button, bool isDown) {
 }
 
 void UIManager::InjectMouseWheel(float xOffset, float yOffset) {
-    LAMBUI_LOGT(TAG, "InjectMouseWheel({}, {}) - not yet implemented", xOffset, yOffset);
-    // Reserved for scrollable containers (not yet implemented).
+    LAMBUI_LOGT(TAG, "InjectMouseWheel({}, {})", xOffset, yOffset);
+    // Walk up from the hit widget looking for the nearest scrollable ancestor
+    // (full generic event bubbling doesn't exist yet - see todo.md).
+    for (UIWidget* w = HitTestRecursive(*m_root, m_mouseX, m_mouseY); w; w = w->GetParent()) {
+        if (auto* scrollable = dynamic_cast<IScrollable*>(w)) {
+            scrollable->OnScroll(xOffset, yOffset);
+            break;
+        }
+    }
 }
 
 void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {

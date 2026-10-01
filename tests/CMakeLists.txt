@@ -12,6 +12,7 @@ add_executable(lambui_tests
     LayoutSolverTests.cpp
     WidgetHierarchyTests.cpp
     EventRoutingTests.cpp
+    ScrollContainerTests.cpp
 )
 
 target_link_libraries(lambui_tests PRIVATE lambui GTest::gtest_main)

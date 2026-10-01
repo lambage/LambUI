@@ -15,6 +15,7 @@
 #include "UILayoutSolver.h"
 #include "UILog.h"
 #include "UIManager.h"
+#include "UIScrollContainer.h"
 #include "UISlider.h"
 #include "UITextureWidget.h"
 #include "UITextWidget.h"

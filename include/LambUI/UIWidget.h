@@ -74,6 +74,11 @@ protected:
     // commands; children are still walked automatically by the caller.
     virtual void OnGenerateRenderCommands(std::vector<UIRenderCommand>& /*bucket*/) {}
 
+    // Walks self (via OnGenerateRenderCommands) then children; overridden by
+    // container widgets that need to wrap their subtree (e.g.
+    // UIScrollContainer emitting PushScissor/PopScissor around its content).
+    virtual void GenerateRenderCommands(std::vector<UIRenderCommand>& bucket);
+
     const std::vector<std::unique_ptr<UIWidget>>& GetChildren() const { return m_children; }
 
 private:
@@ -87,7 +92,6 @@ private:
 
     // Only UIManager drives these; they require top-down tree traversal.
     void ResolveLayout();
-    void GenerateRenderCommands(std::vector<UIRenderCommand>& bucket);
     void SetComputedRectDirect(const UIRect& rect);
 
     std::string m_name;
