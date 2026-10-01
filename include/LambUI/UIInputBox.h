@@ -6,6 +6,8 @@
 
 namespace LambUI {
 
+class ITextMeasurer;
+
 // For player name fields, chat entry bars, or macro creation.
 class LAMBUI_API UIInputBox : public UIControl {
 public:
@@ -32,10 +34,15 @@ protected:
     void OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) override;
 
 private:
+    friend class UIManager;
+    void UpdateCaret(float deltaTime, const ITextMeasurer* textMeasurer);
+
     std::string m_text;
     size_t m_cursor = 0;
     void* m_fontHandle = nullptr;
     bool m_isFocused = false;
+    float m_caretElapsed = 0.0f;
+    const ITextMeasurer* m_textMeasurer = nullptr;
 };
 
 } // namespace LambUI

@@ -3,6 +3,7 @@
 #include "LambUI/UITooltip.h"
 #include "LambUI/UIScrollContainer.h"
 #include "LambUI/UIContextMenu.h"
+#include "LambUI/UIInputBox.h"
 #include <algorithm>
 #include <cmath>
 
@@ -364,6 +365,9 @@ void UIManager::Update(float deltaTime) {
     }
     if (!m_pressedWidget) UpdateHover(m_mouseX, m_mouseY);
     UpdateTooltip(deltaTime);
+    if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget)) {
+        input->UpdateCaret(deltaTime, m_textMeasurer.get());
+    }
 }
 
 void UIManager::Render() {

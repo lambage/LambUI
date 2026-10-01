@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, Lua/sol2 bindings) is fully implemented and builds
-clean. Tests pass (63 GoogleTest cases; optional Lua disabled in this build).
+clean. Tests pass (67 GoogleTest cases; optional Lua disabled in this build).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -106,7 +106,15 @@ See goals.txt for full architecture vision.
   - GL/GL33/SDL3 key mappings; ten new routing regressions. Full MSVC/Ninja
     build and all 63 CTest cases pass; desktop/compact GL33/SDL3 native smoke
     checks pass. Lua remains disabled; focus rings/blinking cursors stay separate.
-- [ ] Input text boxes should show a blinking cursor 
+- [x] Input text boxes should show a blinking cursor.
+  - Focused inputs emit a clipped caret at the insertion point; injected
+    Update(deltaTime) seconds toggle visibility every 0.5s. Focus, editing,
+    and cursor navigation restart the visible phase.
+  - Uses the manager's text measurer and selected font, with a codepoint-based
+    fallback; long text shifts to keep the caret inside the input bounds.
+  - Four new regressions cover timing, editing, font metrics, UTF-8 fallback,
+    clipping, tiny fields, and hidden focus. Full MSVC/Ninja build and all
+    67 CTest cases pass. Native visual testing not run; Lua remains disabled.
 - [ ] Margin/padding system (currently only anchor point + offset).
 - [ ] Min/max size constraints, aspect-ratio preservation, relative
       ("% of parent") sizing.
