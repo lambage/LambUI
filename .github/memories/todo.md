@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, Lua/sol2 bindings) is fully implemented and builds
-clean. Tests pass (34 GoogleTest cases).
+clean. Tests pass (53 GoogleTest cases; optional Lua disabled in this build).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -37,6 +37,22 @@ See goals.txt for full architecture vision.
     to the nearest scrollable ancestor (positive pixel deltas move left/up).
   - GL/SDL3 examples forward wheel input and intersect/restore nested clips.
   - Full MSVC/Ninja build and all 15 tests pass (7 scroll-container tests).
+  - SDL3 clipping fix (2026-10-01): failed/disjoint intersections now become
+    zero-area clips instead of negative extents that disable SDL clipping.
+    Native pixel regressions cover all four offscreen directions, zero area,
+    text/canvas drawing, deeper nesting, and parent-clip restoration. Desktop
+    and compact smoke checks pass; full build and all 53 CTest cases pass.
+- [x] Add reusable visual scrollbars to `UIScrollContainer`.
+  - Default-enabled horizontal/vertical overlay tracks, proportional thumbs,
+    captured dragging, track-click paging, and automatic hiding when content fits.
+  - `SetScrollbarsEnabled` hides bars without disabling wheel/programmatic
+    scrolling. Twelve-pixel overlays preserve existing viewport sizes/ranges;
+    twenty-pixel minimum thumbs are capped to the available track.
+  - Internal child widgets reuse injected input, event consumption, and clipped
+    HAL quad commands across Window settings, control galleries, and tree views.
+  - Full MSVC/Ninja build and all 49 CTest cases pass (12 scroll-container tests).
+    GL33 1100x720/420x720 and SDL3 920x680/420x680 native smoke checks pass;
+    desktop/compact captures inspected. Optional Lua remains disabled.
 - [x] Event bubbling
   - `UIWidget::FireEvent` walks logical parents until `UIEventData::handled`
     is set; existing const-reference callback signatures remain compatible.
@@ -57,13 +73,33 @@ See goals.txt for full architecture vision.
     viewport, and dismiss on outside click/Escape without click-through.
     Tooltips use injected frame time and never capture mouse input.
   - Full MSVC/Ninja build and all 34 CTest cases pass (11 new regressions).
-    Native visual testing was not performed; Lua remains disabled.
+    Native visual testing subsequently passed in the GL33/SDL3 showcases
+    below; Lua remains disabled.
   - Follow-ups: nested submenus and multiline tooltips; keyboard navigation
     and Lua exposure remain separate backlog items.
-- [ ] Multiple fonts
-  - allow for multiple fonts to be registered and text objects will contain
-    a font property
+- [x] Checkboxes, radio buttons, and configurable windows (user-requested).
+  - UICheckBox: checked/enabled state, labels, injected click and Space/Enter.
+    UIRadioButton: exclusive groups scoped to siblings; settled-state callbacks.
+  - UIWindow: clipped client content, click-to-front, title dragging and
+    edge/corner resizing with independent locks and size limits.
+  - Minimize/maximize/restore and close-as-hide; each title button independently
+    Enabled/Disabled/Hidden. Dedicated OnWindowStateChanged and OnClose events.
+  - Mouse capture pairs buttons and ignores hidden targets. Pending geometry
+    survives immediate state transitions; dragging back to origin is exact.
+  - Dropdown options now show labels and safely reuse rows after replacement.
+  - Full MSVC/Ninja build and all 44 CTest cases pass (10 new regressions).
+- [x] Multiple fonts
+  - `FontAtlasTextMeasurer::RegisterFont` maps opaque handles to borrowed
+    atlases; null/unknown handles use the default, duplicates are rejected.
+  - `UITextWidget` and `UIInputBox` expose SetFont/GetFont. Text widgets
+    remeasure existing text on font/measurer changes; input sizes stay fixed.
+  - GL, GL33, and SDL3 select per-handle textures. GL33/SDL3 show a separate
+    heading face with --heading-font; GPU resources are released on teardown.
+  - Four regressions added. Full MSVC/Ninja build and all 53 CTest cases pass.
+    GL33/SDL3 desktop/compact native metrics/pixel/fallback checks pass;
+    screenshots inspected. Lua remains disabled; compound labels use default.
 - [ ] Keyboard navigation (Tab/Shift-Tab focus cycling, arrow keys).
+- [ ] Input text boxes should show a blinking cursor 
 - [ ] Margin/padding system (currently only anchor point + offset).
 - [ ] Min/max size constraints, aspect-ratio preservation, relative
       ("% of parent") sizing.
@@ -73,7 +109,8 @@ See goals.txt for full architecture vision.
 - [ ] Expand Lua bindings: UIInputBox, UIDropDownBox, UICanvasWidget,
       UIControl are not exposed to Lua yet (lua/src/LuaBindings.cpp only
       covers Widget/Button/StatusBar/FontString/Texture).
-  - Also expose the new compound widgets and tooltip properties.
+  - Also expose the new compound widgets, checkbox/radio/window APIs and
+    window events, and tooltip properties.
   - `UI.CreateFrame` factory only supports "Frame", "Button", "StatusBar",
     "EditBox" — missing "DropDown", "Canvas" etc.
 - [x] Implement `ITextMeasurer` concretely in at least one example backend
@@ -97,7 +134,37 @@ See goals.txt for full architecture vision.
     controls; existing examples and the core HAL remain unchanged.
   - Full MSVC/Ninja build and all 15 CTest cases pass. Native GPU smoke
     checks and screenshot inspection pass at 1100x720 and 420x720.
+- [x] Showcase compound widgets in example applications (user-requested,
+      2026-10-01).
+  - OpenGL 3.3 retains its animated canvas and adds an asset inspector;
+    SDL3 now has a resizable asset browser with real frame-time updates.
+  - Shared example-only WidgetShowcase composes all six widgets: tree,
+    tabs, progress, menu bar, context menus, and delayed tooltips.
+  - Both demos support --font, --smoke-test, and --screenshot; bounded
+    checks exercise input, scrolling, actions, overlays, and rendered pixels.
+  - Full MSVC/Ninja build and all 34 CTest cases pass. Native smoke and
+    assets/menu/job/tooltip screenshot checks pass at 1100x720 and 420x720
+    (GL33), and 920x680 and 420x680 (SDL3).
+  - Core library, legacy GL, and Vulkan examples remain unchanged.
+- [x] Expand GL33/SDL3 demos to showcase all controls and window settings
+      (user-requested).
+  - Shared Controls and Window tabs add selection controls, disabled state,
+    slider, input field, labeled dropdown, and backend-rendered canvases.
+  - Preview window supports live move/resize locks and per-button On/Off/Hide
+    settings; reopening remains available outside the window.
+  - Native smoke passes GL 1100x720/420x720 and SDL 920x680/420x680, including
+    policy switches, drag/resize, title buttons, text/selection input, and pixels.
+    Captures cover controls/inputs/canvas/settings/normal/minimized/maximized;
+    desktop and compact screenshots inspected. Full build and 44 tests pass.
 - [ ] Animation/tween framework.
+- [x] Reduce font aliasing in the OpenGL 3.3 example (user-reported,
+      2026-10-01).
+  - Widened derivative-based SDF edge smoothing without changing text size,
+    atlas metrics, the core library, or other backends.
+  - Native smoke checks now cover normal-size text at 1x/1.5x/2x display
+    scales and integer/half-pixel positions, requiring soft edges and solid
+    strokes. Desktop/compact screenshot comparisons show smoother text.
+  - Full MSVC/Ninja build and all 34 CTest cases pass.
 - [ ] Nested submenus and multiline tooltips.
 - [ ] Focus ring visualization; default-button Enter-key highlight.
 - [ ] Text selection / copy-paste.

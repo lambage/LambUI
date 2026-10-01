@@ -7,11 +7,30 @@ namespace {
 constexpr const char* TAG = "UITextWidget";
 } // namespace
 
-UITextWidget::UITextWidget(std::string name) : UIWidget(std::move(name)) {}
+UITextWidget::UITextWidget(std::string name) : UIWidget(std::move(name)) {
+    LAMBUI_LOGT(TAG, "'{}' constructed", GetName());
+}
 
 void UITextWidget::SetText(const std::string& text) {
     LAMBUI_LOGT(TAG, "'{}' SetText('{}')", GetName(), text);
     m_text = text;
+    UpdateTextSize();
+}
+
+void UITextWidget::SetFont(void* fontHandle) {
+    LAMBUI_LOGT(TAG, "'{}' SetFont({})", GetName(), fmt::ptr(fontHandle));
+    m_fontHandle = fontHandle;
+    UpdateTextSize();
+}
+
+void UITextWidget::SetTextMeasurer(const ITextMeasurer* measurer) {
+    LAMBUI_LOGT(TAG, "'{}' SetTextMeasurer({})", GetName(), fmt::ptr(measurer));
+    m_textMeasurer = measurer;
+    UpdateTextSize();
+}
+
+void UITextWidget::UpdateTextSize() {
+    LAMBUI_LOGT(TAG, "'{}' UpdateTextSize", GetName());
     if (m_textMeasurer) {
         float width = 0.0f, height = 0.0f;
         m_textMeasurer->MeasureText(m_text, m_fontHandle, width, height);

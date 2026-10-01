@@ -13,7 +13,9 @@ enum class UIEventType {
     OnClick,
     OnValueChanged,
     OnTextChanged,
-    OnEnterPressed
+    OnEnterPressed,
+    OnWindowStateChanged,
+    OnClose
 };
 
 inline const char* ToString(UIEventType type) {
@@ -26,6 +28,8 @@ inline const char* ToString(UIEventType type) {
         case UIEventType::OnValueChanged: return "OnValueChanged";
         case UIEventType::OnTextChanged: return "OnTextChanged";
         case UIEventType::OnEnterPressed: return "OnEnterPressed";
+        case UIEventType::OnWindowStateChanged: return "OnWindowStateChanged";
+        case UIEventType::OnClose: return "OnClose";
     }
     return "Unknown";
 }

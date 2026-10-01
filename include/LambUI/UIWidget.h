@@ -46,6 +46,7 @@ public:
                   float xOffset = 0.0f, float yOffset = 0.0f);
     void SetAllPoints(UIWidget* relativeTo);
     void ClearPoints();
+    void BringToFront();
     void SetSize(float width, float height);
     const UIRect& GetComputedRect() const { return m_computedRect; }
 
@@ -70,6 +71,7 @@ public:
     bool IsDirty() const { return m_isDirty; }
 
 protected:
+    virtual void OnPointerActivated() {}
     virtual void OnLayoutChanged() {}
 
     // Overridden by concrete widgets to react to state transitions (hover/press/etc).
@@ -86,6 +88,10 @@ protected:
     void AppendChildRenderCommands(UIWidget& child, std::vector<UIRenderCommand>& bucket);
 
     const std::vector<std::unique_ptr<UIWidget>>& GetChildren() const { return m_children; }
+    const std::vector<std::unique_ptr<UIWidget>>& GetSiblings() const {
+        static const std::vector<std::unique_ptr<UIWidget>> empty;
+        return m_parent ? m_parent->m_children : empty;
+    }
 
 private:
     struct AnchorBinding {

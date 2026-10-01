@@ -136,7 +136,7 @@ void UIManager::InjectMouseMove(float x, float y) {
     m_mouseX = x;
     m_mouseY = y;
 
-    if (m_pressedWidget) {
+    if (IsEffectivelyVisible(m_pressedWidget)) {
         // Widget that captured the press keeps movement; no hover churn underneath.
         if (auto* draggable = dynamic_cast<IDraggable*>(m_pressedWidget)) {
             draggable->OnDrag(x, y);
@@ -186,6 +186,7 @@ UIWidget* UIManager::HitTestRecursive(UIWidget& widget, float x, float y) const 
 
 void UIManager::InjectMouseButton(MouseButton button, bool isDown) {
     LAMBUI_LOGT(TAG, "InjectMouseButton({}, isDown={})", ToString(button), isDown);
+    if (m_pressedWidget && button != m_pressedButton) return;
     ResetTooltip();
     if (isDown && m_activePopup && !HitTestRecursive(*m_activePopup, m_mouseX, m_mouseY)) {
         bool ownerHit = false;
@@ -208,6 +209,8 @@ void UIManager::InjectMouseButton(MouseButton button, bool isDown) {
 
     if (isDown) {
         m_pressedWidget = target;
+        m_pressedButton = button;
+        for (auto* widget = target; widget; widget = widget->GetParent()) widget->OnPointerActivated();
 
         if (target != m_focusedWidget) {
             LAMBUI_LOGT(TAG, "focus '{}' -> '{}'", m_focusedWidget ? m_focusedWidget->GetName() : "<none>",

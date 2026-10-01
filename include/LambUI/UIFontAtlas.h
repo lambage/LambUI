@@ -51,17 +51,22 @@ private:
     uint8_t m_onEdgeValue = 180;
 };
 
-// Concrete ITextMeasurer backed by a FontAtlas; sums baked glyph advances so
-// UITextWidget can auto-size without any backend/graphics dependency.
+// Concrete ITextMeasurer backed by borrowed atlases; registered handles select
+// metrics, while null/unknown handles use the constructor's default atlas.
 class LAMBUI_API FontAtlasTextMeasurer : public ITextMeasurer {
 public:
-    explicit FontAtlasTextMeasurer(const FontAtlas& atlas) : m_atlas(atlas) {}
+    explicit FontAtlasTextMeasurer(const FontAtlas& atlas);
+    ~FontAtlasTextMeasurer() override;
+
+    bool RegisterFont(void* fontHandle, const FontAtlas& atlas);
+    const FontAtlas& GetFont(void* fontHandle) const;
 
     void MeasureText(const std::string& text, void* fontHandle,
                       float& outWidth, float& outHeight) const override;
 
 private:
     const FontAtlas& m_atlas;
+    std::unordered_map<void*, const FontAtlas*> m_fonts;
 };
 
 } // namespace LambUI

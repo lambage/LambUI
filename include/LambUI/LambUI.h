@@ -6,6 +6,8 @@
 #include "IRenderer.h"
 #include "UICanvasWidget.h"
 #include "UIControl.h"
+#include "UICheckBox.h"
+#include "UIRadioButton.h"
 #include "UIContextMenu.h"
 #include "UIButton.h"
 #include "UIDropDownBox.h"
@@ -27,3 +29,4 @@
 #include "UITextWidget.h"
 #include "UITypes.h"
 #include "UIWidget.h"
+#include "UIWindow.h"

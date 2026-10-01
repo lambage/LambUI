@@ -1,4 +1,5 @@
 #include "GL33ExampleRenderer.h"
+#include "../../common/WidgetShowcase.h"
 #include "LambUI/UIButton.h"
 #include "LambUI/UICanvasWidget.h"
 #include "LambUI/UILog.h"
@@ -60,8 +61,10 @@ void InstallInput(GLFWwindow* window, UIManager& manager) {
         if (key == GLFW_KEY_BACKSPACE) scanCode = ScanCode::Backspace;
         else if (key == GLFW_KEY_ENTER || key == GLFW_KEY_KP_ENTER) scanCode = ScanCode::Enter;
         else if (key == GLFW_KEY_ESCAPE) scanCode = ScanCode::Escape;
+        else if (key == GLFW_KEY_SPACE) scanCode = ScanCode::Space;
+        const bool hadPopup = Manager(source)->GetActivePopup() != nullptr;
         if (scanCode) Manager(source)->InjectKeyEvent(scanCode, action != GLFW_RELEASE);
-        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) glfwSetWindowShouldClose(source, GLFW_TRUE);
+        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS && !hadPopup) glfwSetWindowShouldClose(source, GLFW_TRUE);
     });
 }
 
@@ -87,7 +90,7 @@ bool SaveScreenshot(const std::string& path, int width, int height) {
     return static_cast<bool>(output);
 }
 
-bool CheckRenderer(GL33ExampleRenderer& renderer, int width, int height) {
+bool CheckRenderer(GL33ExampleRenderer& renderer, int width, int height, void* headingFont) {
     LAMBUI_LOGT(TAG, "CheckRenderer({}, {})", width, height);
     renderer.SetViewportSize(64, 64, width, height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -155,19 +158,80 @@ bool CheckRenderer(GL33ExampleRenderer& renderer, int width, int height) {
     }
     passed = passed && ink > 20 && antialiased > 5 && glGetError() == GL_NO_ERROR;
     LAMBUI_LOGI(TAG, "Renderer smoke: {} (SDF ink={}, antialiased={})", passed ? "PASS" : "FAIL", ink, antialiased);
+    for (const float displayScale : {1.0f, 1.5f, 2.0f}) {
+        renderer.SetViewportSize(static_cast<int>(width / displayScale), static_cast<int>(height / displayScale), width, height);
+        for (const float offset : {0.0f, 0.5f}) {
+            glClear(GL_COLOR_BUFFER_BIT);
+            text.text = "Materials / SDF 0123";
+            text.x = 8.0f + offset;
+            text.y = 8.0f + offset;
+            renderer.SubmitRenderCommands({text});
+            const auto textPixels = ReadPixels(width, height);
+            size_t visiblePixels = 0, softPixels = 0, solidPixels = 0;
+            for (size_t pixel = 0; pixel < textPixels.size(); pixel += 4) {
+                const auto coverage = textPixels[pixel];
+                if (coverage > 0) ++visiblePixels;
+                if (coverage > 16 && coverage < 240) ++softPixels;
+                if (coverage >= 240) ++solidPixels;
+            }
+            const bool textPassed = visiblePixels > 100 && softPixels > visiblePixels / 5 && solidPixels > 5;
+            passed = textPassed && passed;
+            LAMBUI_LOGI(TAG, "UI text AA scale={} offset={}: {} (ink={}, soft={}, solid={})",
+                        displayScale, offset, textPassed ? "PASS" : "FAIL", visiblePixels, softPixels, solidPixels);
+        }
+    }
+    renderer.SetViewportSize(width, height, width, height);
+    text.text = "LambUI 0123";
+    text.x = text.y = 8.0f;
+    text.fontHandle = nullptr;
+    glClear(GL_COLOR_BUFFER_BIT);
+    renderer.SubmitRenderCommands({text});
+    const auto defaultPixels = ReadPixels(width, height);
+    text.fontHandle = headingFont;
+    glClear(GL_COLOR_BUFFER_BIT);
+    renderer.SubmitRenderCommands({text});
+    const auto headingPixels = ReadPixels(width, height);
+    size_t headingInk = 0;
+    for (size_t pixel = 0; pixel < headingPixels.size(); pixel += 4) {
+        if (headingPixels[pixel] > 0) ++headingInk;
+    }
+    text.fontHandle = &text;
+    glClear(GL_COLOR_BUFFER_BIT);
+    renderer.SubmitRenderCommands({text});
+    const bool fontsPassed = headingInk > 20 && defaultPixels != headingPixels &&
+                             defaultPixels == ReadPixels(width, height);
+    LAMBUI_LOGI(TAG, "Multiple-font pixels and fallback: {}", fontsPassed ? "PASS" : "FAIL");
+    passed = fontsPassed && glGetError() == GL_NO_ERROR && passed;
     return passed;
 }
 
-int RunExample(GLFWwindow* window, const std::string& fontPath, bool smoke, const std::string& screenshotPrefix) {
+int RunExample(GLFWwindow* window, const std::string& fontPath, const std::string& headingFontPath,
+               bool smoke, const std::string& screenshotPrefix) {
     LAMBUI_LOGT(TAG, "RunExample(smoke={})", smoke);
     auto renderer = std::make_shared<GL33ExampleRenderer>();
     if (!renderer->Initialize()) return 1;
     FontAtlas atlas;
-    if (!atlas.LoadFromFile(fontPath, 28) || !renderer->LoadFont(atlas)) {
+    if (!atlas.LoadFromFile(fontPath, 20) || !renderer->LoadFont(atlas)) {
         LAMBUI_LOGE(TAG, "Cannot load font '{}'; pass --font <path-to-ttf>", fontPath);
         return 1;
     }
     auto measurer = std::make_shared<FontAtlasTextMeasurer>(atlas);
+    FontAtlas headingAtlas;
+    if (!headingAtlas.LoadFromFile(headingFontPath, 26) || !renderer->LoadFont(headingAtlas, &headingAtlas) ||
+        !measurer->RegisterFont(&headingAtlas, headingAtlas)) {
+        LAMBUI_LOGE(TAG, "Cannot register heading font '{}'", headingFontPath);
+        return 1;
+    }
+    if (smoke) {
+        float bodyWidth = 0, bodyHeight = 0, headingWidth = 0, headingHeight = 0;
+        measurer->MeasureText("MMMM", nullptr, bodyWidth, bodyHeight);
+        measurer->MeasureText("MMMM", &headingAtlas, headingWidth, headingHeight);
+        const auto* glyph = headingAtlas.FindGlyph(U'M');
+        const bool metricsPassed = glyph && std::abs(headingWidth - glyph->advance * 4) < 0.01f &&
+            headingHeight == headingAtlas.GetLineHeight() && bodyHeight != headingHeight && bodyWidth != headingWidth;
+        LAMBUI_LOGI(TAG, "Multiple-font atlas metrics: {}", metricsPassed ? "PASS" : "FAIL");
+        if (!metricsPassed) return 1;
+    }
     UIManager manager(renderer, measurer);
     InstallInput(window, manager);
     auto& root = manager.GetRoot();
@@ -189,7 +253,7 @@ int RunExample(GLFWwindow* window, const std::string& fontPath, bool smoke, cons
         widget->SetPoint(AnchorPoint::TopLeft, &parent, AnchorPoint::TopLeft, offsetX, offsetY);
         return widget;
     };
-    label(*header, "Title", "LambUI / OpenGL 3.3", 24.0f, 18.0f, 0xF0F4F3FFu);
+    label(*header, "Title", "LambUI / OpenGL 3.3", 24.0f, 18.0f, 0xF0F4F3FFu)->SetFont(&headingAtlas);
     label(*header, "Subtitle", "CONTOUR STUDY", 24.0f, 56.0f, 0x67DBB3FFu);
     auto* footer = root.CreateChild<UITextureWidget>("Controls");
     footer->SetPoint(AnchorPoint::TopLeft, &root, AnchorPoint::BottomLeft, 0.0f, -180.0f);
@@ -214,6 +278,9 @@ int RunExample(GLFWwindow* window, const std::string& fontPath, bool smoke, cons
         LAMBUI_LOGT(TAG, "Pause({})", paused);
         buttonText->SetText(paused ? "Resume" : "Pause");
     });
+    button->SetTooltip("Pause the contour animation");
+    slider->SetTooltip("Contour distortion");
+    LambUIExamples::WidgetShowcase widgets(manager, [&renderer](const UICustomRenderArgs& args) { renderer->DrawEffect(args); });
 
     float effectTime = 0.0f;
     double previousTime = glfwGetTime();
@@ -233,10 +300,13 @@ int RunExample(GLFWwindow* window, const std::string& fontPath, bool smoke, cons
             previousTime = glfwGetTime();
             continue;
         }
-        if (smoke) passed = CheckRenderer(*renderer, framebufferWidth, framebufferHeight) && passed;
+        if (smoke) passed = CheckRenderer(*renderer, framebufferWidth, framebufferHeight, &headingAtlas) && passed;
         renderer->SetViewportSize(width, height, framebufferWidth, framebufferHeight);
         if (width != previousWidth || height != previousHeight) {
             manager.SetDisplaySize(static_cast<float>(width), static_cast<float>(height));
+            const float panelWidth = width < 700 ? static_cast<float>(width) - 32.0f : 320.0f;
+            widgets.Layout(static_cast<float>(width) - panelWidth - 16.0f, 124.0f,
+                           panelWidth, std::min(380.0f, static_cast<float>(height) - 320.0f));
             previousWidth = width;
             previousHeight = height;
         }
@@ -244,8 +314,10 @@ int RunExample(GLFWwindow* window, const std::string& fontPath, bool smoke, cons
         const float deltaTime = static_cast<float>(std::min(now - previousTime, 0.1));
         previousTime = now;
         if (!paused) effectTime += deltaTime;
+        widgets.Update(deltaTime);
         manager.Update(deltaTime);
         if (smoke) {
+            passed = widgets.SmokeTest() && passed;
             const auto buttonRect = button->GetComputedRect();
             manager.InjectMouseMove(buttonRect.x + 30.0f, buttonRect.y + 20.0f);
             manager.InjectMouseButton(MouseButton::Left, true);
@@ -285,6 +357,15 @@ int RunExample(GLFWwindow* window, const std::string& fontPath, bool smoke, cons
         if (!screenshotPrefix.empty() && (!screenshotSaved || smoke)) {
             const std::string suffix = width < 600 ? "-compact.ppm" : "-desktop.ppm";
             passed = SaveScreenshot(screenshotPrefix + suffix, framebufferWidth, framebufferHeight) && passed;
+            if (smoke) {
+                const auto basePixels = ReadPixels(framebufferWidth, framebufferHeight);
+                passed = widgets.CaptureViews([&](const char* state) {
+                    glClear(GL_COLOR_BUFFER_BIT);
+                    manager.Render();
+                    const bool changed = ReadPixels(framebufferWidth, framebufferHeight) != basePixels;
+                    return SaveScreenshot(screenshotPrefix + "-" + state + suffix, framebufferWidth, framebufferHeight) && changed;
+                }) && passed;
+            }
             screenshotSaved = true;
         }
         if (const GLenum error = glGetError(); error != GL_NO_ERROR) {
@@ -306,14 +387,16 @@ int main(int argc, char** argv) {
     LAMBUI_LOGI(TAG, "Starting OpenGL 3.3 example");
     bool smoke = false;
     std::string fontPath;
+    std::string headingFontPath;
     std::string screenshotPrefix;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
         if (argument == "--smoke-test") smoke = true;
         else if (argument == "--font" && index + 1 < argc) fontPath = argv[++index];
+        else if (argument == "--heading-font" && index + 1 < argc) headingFontPath = argv[++index];
         else if (argument == "--screenshot" && index + 1 < argc) screenshotPrefix = argv[++index];
         else {
-            LAMBUI_LOGE(TAG, "Usage: lambui_example_opengl33 [--font path] [--smoke-test] [--screenshot prefix]");
+            LAMBUI_LOGE(TAG, "Usage: lambui_example_opengl33 [--font path] [--heading-font path] [--smoke-test] [--screenshot prefix]");
             return 1;
         }
     }
@@ -323,6 +406,17 @@ int main(int argc, char** argv) {
                                      "/System/Library/Fonts/Supplemental/Arial.ttf"}) {
             if (std::filesystem::exists(candidate)) {
                 fontPath = candidate;
+                break;
+            }
+        }
+    }
+    if (headingFontPath.empty()) {
+        headingFontPath = fontPath;
+        for (const char* candidate : {"C:/Windows/Fonts/georgia.ttf",
+                                     "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+                                     "/System/Library/Fonts/Supplemental/Georgia.ttf"}) {
+            if (std::filesystem::exists(candidate)) {
+                headingFontPath = candidate;
                 break;
             }
         }
@@ -350,9 +444,9 @@ int main(int argc, char** argv) {
     }
     LAMBUI_LOGI(TAG, "GL {} / {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)),
                 reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
-    glfwSetWindowSizeLimits(window, 360, 420, GLFW_DONT_CARE, GLFW_DONT_CARE);
+    glfwSetWindowSizeLimits(window, 360, 640, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwSwapInterval(smoke ? 0 : 1);
-    const int result = RunExample(window, fontPath, smoke, screenshotPrefix);
+    const int result = RunExample(window, fontPath, headingFontPath, smoke, screenshotPrefix);
     LAMBUI_LOGT(TAG, "Destroy window and terminate GLFW");
     glfwDestroyWindow(window);
     glfwTerminate();

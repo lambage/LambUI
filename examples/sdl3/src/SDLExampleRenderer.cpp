@@ -17,12 +17,18 @@ void ApplyColor(SDL_Renderer* renderer, uint32_t packedRGBA) {
 }
 } // namespace
 
-SDLExampleRenderer::~SDLExampleRenderer() {
-    if (m_fontTexture) SDL_DestroyTexture(m_fontTexture);
+SDLExampleRenderer::SDLExampleRenderer(SDL_Renderer* renderer) : m_renderer(renderer) {
+    LAMBUI_LOGT(TAG, "Construct");
 }
 
-bool SDLExampleRenderer::LoadFont(const FontAtlas& atlas) {
-    m_fontAtlas = &atlas;
+SDLExampleRenderer::~SDLExampleRenderer() {
+    LAMBUI_LOGT(TAG, "Destroy");
+    for (const auto& entry : m_fonts) SDL_DestroyTexture(entry.second.second);
+}
+
+bool SDLExampleRenderer::LoadFont(const FontAtlas& atlas, void* fontHandle) {
+    LAMBUI_LOGT(TAG, "LoadFont({}, {}x{})", fmt::ptr(fontHandle), atlas.GetAtlasWidth(), atlas.GetAtlasHeight());
+    if (atlas.GetAtlasPixels().empty() || m_fonts.count(fontHandle)) return false;
 
     const int width = atlas.GetAtlasWidth();
     const int height = atlas.GetAtlasHeight();
@@ -40,41 +46,47 @@ bool SDLExampleRenderer::LoadFont(const FontAtlas& atlas) {
         rgba[i] = 0x00FFFFFFu | (static_cast<uint32_t>(a) << 24); // white RGB, sharpened alpha
     }
 
-    if (m_fontTexture) SDL_DestroyTexture(m_fontTexture);
-    m_fontTexture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA32,
+    auto* texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA32,
                                        SDL_TEXTUREACCESS_STATIC, width, height);
-    if (!m_fontTexture) return false;
+    if (!texture) return false;
 
-    SDL_UpdateTexture(m_fontTexture, nullptr, rgba.data(), width * static_cast<int>(sizeof(uint32_t)));
-    SDL_SetTextureBlendMode(m_fontTexture, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(m_fontTexture, SDL_SCALEMODE_LINEAR);
+    if (!SDL_UpdateTexture(texture, nullptr, rgba.data(), width * static_cast<int>(sizeof(uint32_t))) ||
+        !SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND) ||
+        !SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR)) {
+        SDL_DestroyTexture(texture);
+        return false;
+    }
+    m_fonts.emplace(fontHandle, std::make_pair(&atlas, texture));
     return true;
 }
 
 void SDLExampleRenderer::DrawString(const UIRenderCommand& cmd) {
-    if (!m_fontAtlas || !m_fontTexture) return;
+    auto found = m_fonts.find(cmd.fontHandle);
+    if (found == m_fonts.end()) found = m_fonts.find(nullptr);
+    if (found == m_fonts.end()) return;
+    const auto& [atlas, texture] = found->second;
 
     const Uint8 r = static_cast<Uint8>((cmd.color >> 24) & 0xFF);
     const Uint8 g = static_cast<Uint8>((cmd.color >> 16) & 0xFF);
     const Uint8 b = static_cast<Uint8>((cmd.color >> 8) & 0xFF);
     const Uint8 a = static_cast<Uint8>(cmd.color & 0xFF);
-    SDL_SetTextureColorMod(m_fontTexture, r, g, b);
-    SDL_SetTextureAlphaMod(m_fontTexture, a);
+    SDL_SetTextureColorMod(texture, r, g, b);
+    SDL_SetTextureAlphaMod(texture, a);
 
-    const float atlasW = static_cast<float>(m_fontAtlas->GetAtlasWidth());
-    const float atlasH = static_cast<float>(m_fontAtlas->GetAtlasHeight());
+    const float atlasW = static_cast<float>(atlas->GetAtlasWidth());
+    const float atlasH = static_cast<float>(atlas->GetAtlasHeight());
     float penX = cmd.x;
-    const float penY = cmd.y + m_fontAtlas->GetAscent();
+    const float penY = cmd.y + atlas->GetAscent();
 
     for (unsigned char c : cmd.text) {
-        const GlyphInfo* glyph = m_fontAtlas->FindGlyph(static_cast<char32_t>(c));
+        const GlyphInfo* glyph = atlas->FindGlyph(static_cast<char32_t>(c));
         if (!glyph) continue;
 
         if (glyph->width > 0.0f && glyph->height > 0.0f) {
             SDL_FRect src{glyph->u0 * atlasW, glyph->v0 * atlasH,
                           (glyph->u1 - glyph->u0) * atlasW, (glyph->v1 - glyph->v0) * atlasH};
             SDL_FRect dst{penX + glyph->bearingX, penY + glyph->bearingY, glyph->width, glyph->height};
-            SDL_RenderTexture(m_renderer, m_fontTexture, &src, &dst);
+            SDL_RenderTexture(m_renderer, texture, &src, &dst);
         }
         penX += glyph->advance;
     }
@@ -99,10 +111,13 @@ void SDLExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>
                 break;
             case RenderCommandType::PushScissor: {
                 SDL_Rect clip{static_cast<int>(cmd.x), static_cast<int>(cmd.y),
-                              static_cast<int>(cmd.width), static_cast<int>(cmd.height)};
+                              std::max(0, static_cast<int>(cmd.width)),
+                              std::max(0, static_cast<int>(cmd.height))};
                 if (!clips.empty()) {
                     SDL_Rect intersection{};
-                    SDL_GetRectIntersection(&clips.back(), &clip, &intersection);
+                    if (!SDL_GetRectIntersection(&clips.back(), &clip, &intersection)) {
+                        intersection = {};
+                    }
                     clip = intersection;
                 }
                 clips.push_back(clip);

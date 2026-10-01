@@ -74,6 +74,12 @@ void UIInputBox::SetText(const std::string& text) {
     MarkDirty();
 }
 
+void UIInputBox::SetFont(void* fontHandle) {
+    LAMBUI_LOGT(TAG, "'{}' SetFont({})", GetName(), fmt::ptr(fontHandle));
+    m_fontHandle = fontHandle;
+    MarkDirty();
+}
+
 void UIInputBox::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
     const UIRect& rect = GetComputedRect();
 
@@ -91,6 +97,7 @@ void UIInputBox::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) 
     textCmd.x = rect.x + 4.0f;
     textCmd.y = rect.y + 4.0f;
     textCmd.color = 0xFFFFFFFFu;
+    textCmd.fontHandle = m_fontHandle;
     textCmd.text = m_text;
     bucket.push_back(textCmd);
 }

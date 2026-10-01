@@ -99,6 +99,7 @@ namespace ScanCode {
     constexpr uint32_t Backspace = 8;
     constexpr uint32_t Enter = 13;
     constexpr uint32_t Escape = 27;
+    constexpr uint32_t Space = 32;
 } // namespace ScanCode
 
 } // namespace LambUI

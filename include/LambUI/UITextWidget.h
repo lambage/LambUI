@@ -18,16 +18,19 @@ public:
     void SetText(const std::string& text);
     const std::string& GetText() const { return m_text; }
 
-    void SetFont(void* fontHandle) { m_fontHandle = fontHandle; MarkDirty(); }
+    void SetFont(void* fontHandle);
+    void* GetFont() const { return m_fontHandle; }
     void SetColor(uint32_t color) { m_color = color; MarkDirty(); }
 
     // Optional: when set, the widget resizes itself to fit the text on change.
-    void SetTextMeasurer(const ITextMeasurer* measurer) { m_textMeasurer = measurer; }
+    void SetTextMeasurer(const ITextMeasurer* measurer);
 
 protected:
     void OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) override;
 
 private:
+    void UpdateTextSize();
+
     std::string m_text;
     void* m_fontHandle = nullptr;
     uint32_t m_color = 0xFFFFFFFFu;

@@ -26,6 +26,9 @@ public:
     float GetScrollY() const { return m_scrollY; }
     bool ClipsChildren() const override { return true; }
 
+    void SetScrollbarsEnabled(bool enabled);
+    bool AreScrollbarsEnabled() const { return m_scrollbarsEnabled; }
+
     // IScrollable: pixel deltas; positive values move toward the left/top.
     // Hosts convert wheel steps to pixels before UIManager::InjectMouseWheel.
     void OnScroll(float xOffset, float yOffset) override;
@@ -35,9 +38,14 @@ protected:
     void GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) override;
 
 private:
+    class ScrollBar;
     void ApplyScrollOffset();
+    void UpdateScrollbars();
 
     UIWidget* m_content = nullptr;
+    ScrollBar* m_horizontalBar = nullptr;
+    ScrollBar* m_verticalBar = nullptr;
+    bool m_scrollbarsEnabled = true;
     float m_contentWidth = 0.0f;
     float m_contentHeight = 0.0f;
     float m_scrollX = 0.0f;

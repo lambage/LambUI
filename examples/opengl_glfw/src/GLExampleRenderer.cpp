@@ -31,18 +31,26 @@ void DrawQuad(const UIRenderCommand& cmd) {
 }
 } // namespace
 
+GLExampleRenderer::GLExampleRenderer() {
+    LAMBUI_LOGT(TAG, "Construct");
+}
+
+GLExampleRenderer::~GLExampleRenderer() {
+    LAMBUI_LOGT(TAG, "Destroy");
+    for (const auto& entry : m_fonts) glDeleteTextures(1, &entry.second.second);
+}
+
 void GLExampleRenderer::SetViewportSize(int width, int height) {
     m_viewportWidth = width;
     m_viewportHeight = height;
 }
 
-bool GLExampleRenderer::LoadFont(const FontAtlas& atlas) {
-    m_fontAtlas = &atlas;
-
-    if (m_fontTexture == 0) {
-        glGenTextures(1, &m_fontTexture);
-    }
-    glBindTexture(GL_TEXTURE_2D, m_fontTexture);
+bool GLExampleRenderer::LoadFont(const FontAtlas& atlas, void* fontHandle) {
+    LAMBUI_LOGT(TAG, "LoadFont({}, {}x{})", fmt::ptr(fontHandle), atlas.GetAtlasWidth(), atlas.GetAtlasHeight());
+    if (atlas.GetAtlasPixels().empty() || m_fonts.count(fontHandle)) return false;
+    GLuint texture = 0;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
     // GL_INTENSITY replicates the single SDF channel into R,G,B,A so vertex
     // color tinting (glColor4f) and GL_ALPHA_TEST both work against it.
     glTexImage2D(GL_TEXTURE_2D, 0, GL_INTENSITY, atlas.GetAtlasWidth(), atlas.GetAtlasHeight(),
@@ -52,25 +60,33 @@ bool GLExampleRenderer::LoadFont(const FontAtlas& atlas) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
+    if (glGetError() != GL_NO_ERROR) {
+        glDeleteTextures(1, &texture);
+        return false;
+    }
+    m_fonts.emplace(fontHandle, std::make_pair(&atlas, texture));
     return true;
 }
 
 void GLExampleRenderer::DrawString(const UIRenderCommand& cmd) {
-    if (!m_fontAtlas || m_fontTexture == 0) return;
+    auto found = m_fonts.find(cmd.fontHandle);
+    if (found == m_fonts.end()) found = m_fonts.find(nullptr);
+    if (found == m_fonts.end()) return;
+    const auto& [atlas, texture] = found->second;
 
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_ALPHA_TEST);
     // Threshold slightly below the baked on-edge value for a touch of AA falloff.
-    glAlphaFunc(GL_GREATER, static_cast<float>(m_fontAtlas->GetOnEdgeValue()) / 255.0f - 0.15f);
-    glBindTexture(GL_TEXTURE_2D, m_fontTexture);
+    glAlphaFunc(GL_GREATER, static_cast<float>(atlas->GetOnEdgeValue()) / 255.0f - 0.15f);
+    glBindTexture(GL_TEXTURE_2D, texture);
     SetGLColor(cmd.color);
 
     float penX = cmd.x;
-    const float penY = cmd.y + m_fontAtlas->GetAscent();
+    const float penY = cmd.y + atlas->GetAscent();
 
     glBegin(GL_QUADS);
     for (unsigned char c : cmd.text) {
-        const GlyphInfo* glyph = m_fontAtlas->FindGlyph(static_cast<char32_t>(c));
+        const GlyphInfo* glyph = atlas->FindGlyph(static_cast<char32_t>(c));
         if (!glyph) continue;
 
         if (glyph->width > 0.0f && glyph->height > 0.0f) {

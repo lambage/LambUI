@@ -66,6 +66,12 @@ int main() {
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
+    const auto destroyWindow = [](GLFWwindow* ownedWindow) {
+        LAMBUI_LOGT(TAG, "Destroy window and context");
+        glfwDestroyWindow(ownedWindow);
+        glfwTerminate();
+    };
+    const std::unique_ptr<GLFWwindow, decltype(destroyWindow)> windowOwner(window, destroyWindow);
     auto renderer = std::make_shared<GLExampleRenderer>();
     g_renderer = renderer.get();
     renderer->SetViewportSize(1280, 720);
@@ -141,7 +147,5 @@ int main() {
 
     g_uiManager = nullptr;
     g_renderer = nullptr;
-    glfwDestroyWindow(window);
-    glfwTerminate();
     return 0;
 }

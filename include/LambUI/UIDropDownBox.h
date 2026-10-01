@@ -8,6 +8,8 @@
 
 namespace LambUI {
 
+class UITextWidget;
+
 // A combination widget: a button showing the current selection, which
 // expands a vertical stack of option buttons (its own children) when clicked.
 class LAMBUI_API UIDropDownBox : public UIControl {
@@ -33,6 +35,7 @@ private:
     int m_selectedIndex = -1;
     bool m_isExpanded = false;
     std::vector<UIButton*> m_optionButtons; // owned by the widget tree (children)
+    std::vector<UITextWidget*> m_optionLabels;
 };
 
 } // namespace LambUI

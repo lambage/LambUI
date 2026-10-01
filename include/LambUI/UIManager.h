@@ -92,6 +92,7 @@ private:
 
     UIWidget* m_hoveredWidget = nullptr;
     UIWidget* m_pressedWidget = nullptr; // captures mouse-move for dragging (e.g. UISlider)
+    MouseButton m_pressedButton = MouseButton::Left;
     UIWidget* m_focusedWidget = nullptr; // receives keyboard input (e.g. UIInputBox)
 };
 

@@ -2,6 +2,8 @@
 
 #include "LambUI/IRenderer.h"
 #include "LambUI/UIFontAtlas.h"
+#include <unordered_map>
+#include <utility>
 
 struct SDL_Renderer;
 struct SDL_Texture;
@@ -13,10 +15,12 @@ struct SDL_Texture;
 // of being smoothstepped per-pixel like a true MSDF shader would.
 class SDLExampleRenderer : public LambUI::IRenderer {
 public:
-    explicit SDLExampleRenderer(SDL_Renderer* renderer) : m_renderer(renderer) {}
+    explicit SDLExampleRenderer(SDL_Renderer* renderer);
     ~SDLExampleRenderer() override;
+    SDLExampleRenderer(const SDLExampleRenderer&) = delete;
+    SDLExampleRenderer& operator=(const SDLExampleRenderer&) = delete;
 
-    bool LoadFont(const LambUI::FontAtlas& atlas);
+    bool LoadFont(const LambUI::FontAtlas& atlas, void* fontHandle = nullptr);
 
     void SubmitRenderCommands(const std::vector<LambUI::UIRenderCommand>& commands) override;
 
@@ -24,6 +28,5 @@ private:
     void DrawString(const LambUI::UIRenderCommand& cmd);
 
     SDL_Renderer* m_renderer;
-    const LambUI::FontAtlas* m_fontAtlas = nullptr;
-    SDL_Texture* m_fontTexture = nullptr;
+    std::unordered_map<void*, std::pair<const LambUI::FontAtlas*, SDL_Texture*>> m_fonts;
 };

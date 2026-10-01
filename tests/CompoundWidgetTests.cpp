@@ -6,12 +6,378 @@
 using namespace LambUI;
 
 namespace {
+constexpr const char* TAG = "FontTestMeasurer";
+
 class RecordingRenderer : public IRenderer {
 public:
     void SubmitRenderCommands(const std::vector<UIRenderCommand>& commands) override { bucket = commands; }
     std::vector<UIRenderCommand> bucket;
 };
 
+class FontTestMeasurer final : public ITextMeasurer {
+public:
+    FontTestMeasurer() { LAMBUI_LOGT(TAG, "Construct"); }
+    ~FontTestMeasurer() override { LAMBUI_LOGT(TAG, "Destroy"); }
+
+    void MeasureText(const std::string& text, void* fontHandle,
+                     float& width, float& height) const override {
+        const float advance = fontHandle ? *static_cast<const float*>(fontHandle) : 6.0f;
+        width = static_cast<float>(text.size()) * advance;
+        height = advance * 2.0f;
+    }
+};
+}
+
+TEST(FontSelection, RegistrationPreservesDefaultAndRejectsDuplicateHandles) {
+    FontAtlas defaultFont;
+    FontAtlas alternateFont;
+    FontAtlas unknownFont;
+    FontAtlasTextMeasurer measurer(defaultFont);
+    EXPECT_FALSE(measurer.RegisterFont(nullptr, alternateFont));
+    EXPECT_TRUE(measurer.RegisterFont(&alternateFont, alternateFont));
+    EXPECT_FALSE(measurer.RegisterFont(&alternateFont, unknownFont));
+    EXPECT_EQ(&measurer.GetFont(nullptr), &defaultFont);
+    EXPECT_EQ(&measurer.GetFont(&unknownFont), &defaultFont);
+    EXPECT_EQ(&measurer.GetFont(&alternateFont), &alternateFont);
+}
+
+TEST(FontSelection, FontAndMeasurerChangesRemeasureExistingText) {
+    FontTestMeasurer measurer;
+    float alternateAdvance = 10.0f;
+    UIManager manager(nullptr);
+    auto* label = manager.GetRoot().CreateChild<UITextWidget>("FontLabel");
+    label->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    label->SetText("Existing text");
+    label->SetSize(123, 45);
+    label->SetTextMeasurer(&measurer);
+    manager.Update(0);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().width, 78);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().height, 12);
+    label->SetSize(123, 45);
+    label->SetFont(&alternateAdvance);
+    manager.Update(0);
+    EXPECT_EQ(label->GetFont(), &alternateAdvance);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().width, 130);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().height, 20);
+    label->SetText("New");
+    manager.Update(0);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().width, 30);
+    label->SetFont(nullptr);
+    manager.Update(0);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().width, 18);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().height, 12);
+    label->SetTextMeasurer(nullptr);
+    label->SetSize(123, 45);
+    label->SetFont(nullptr);
+    manager.Update(0);
+    EXPECT_EQ(label->GetFont(), nullptr);
+    EXPECT_FLOAT_EQ(label->GetComputedRect().width, 123);
+}
+
+TEST(FontSelection, MixedTextCommandsPreserveIndependentFontHandlesAndMetrics) {
+    FontTestMeasurer measurer;
+    float alternateAdvance = 10.0f;
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    auto* body = manager.GetRoot().CreateChild<UITextWidget>("Body");
+    auto* heading = manager.GetRoot().CreateChild<UITextWidget>("Heading");
+    body->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    heading->SetPoint(AnchorPoint::TopLeft, body, AnchorPoint::BottomLeft);
+    body->SetTextMeasurer(&measurer);
+    heading->SetFont(&alternateAdvance);
+    heading->SetText("Same");
+    heading->SetTextMeasurer(&measurer);
+    body->SetText("Same");
+    manager.Update(0);
+    manager.Render();
+    const auto& commands = renderer->bucket;
+    ASSERT_EQ(commands.size(), 2u);
+    EXPECT_EQ(commands[0].type, RenderCommandType::DrawString);
+    EXPECT_EQ(commands[1].type, RenderCommandType::DrawString);
+    EXPECT_EQ(commands[0].fontHandle, nullptr);
+    EXPECT_EQ(commands[1].fontHandle, &alternateAdvance);
+    EXPECT_FLOAT_EQ(commands[0].width, 24);
+    EXPECT_FLOAT_EQ(commands[1].width, 40);
+    EXPECT_FLOAT_EQ(commands[1].y, 12);
+}
+
+TEST(FontSelection, InputBoxPreservesFontThroughEditingAndFixedSize) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    FontAtlas font;
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    input->SetSize(180, 30);
+    input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    input->SetFont(&font);
+    input->SetText("A");
+    manager.Update(0);
+    manager.InjectMouseMove(10, 10);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    manager.InjectCharacter(U'B');
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 2u);
+    EXPECT_EQ(renderer->bucket.back().fontHandle, &font);
+    EXPECT_EQ(renderer->bucket.back().text, "AB");
+    EXPECT_EQ(input->GetFont(), &font);
+    EXPECT_FLOAT_EQ(input->GetComputedRect().width, 180);
+    input->SetFont(nullptr);
+    manager.Update(0);
+    manager.Render();
+    EXPECT_EQ(renderer->bucket.back().fontHandle, nullptr);
+}
+
+TEST(WindowWidget, InjectedMoveResizeLimitsAndLocks) {
+    UIManager manager(nullptr);
+    manager.SetDisplaySize(800, 600);
+    auto* window = manager.GetRoot().CreateChild<UIWindow>("Window");
+    window->SetBounds(50, 60, 300, 200);
+    window->SetSizeLimits(200, 120, 400, 300);
+    manager.Update(0);
+    const auto drag = [&](float x, float y, float dx, float dy) {
+        manager.InjectMouseMove(x, y);
+        manager.InjectMouseButton(MouseButton::Left, true);
+        manager.InjectMouseMove(x + dx, y + dy);
+        manager.Update(0);
+        manager.InjectMouseButton(MouseButton::Left, false);
+    };
+    drag(70, 75, 30, 40);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().x, 80);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().y, 100);
+    window->SetMovable(false);
+    drag(100, 115, 30, 40);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().x, 80);
+    drag(379, 299, 200, 200);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().width, 400);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().height, 300);
+    drag(81, 101, 500, 500);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().width, 200);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().height, 120);
+    const auto locked = window->GetComputedRect();
+    window->SetResizable(false);
+    drag(locked.x + locked.width - 1, locked.y + locked.height - 1, 80, 80);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().width, locked.width);
+}
+
+TEST(WindowWidget, PendingBoundsSurviveStateTransitionsAndSizeLimits) {
+    UIManager manager(nullptr);
+    auto* window = manager.GetRoot().CreateChild<UIWindow>();
+    window->SetBounds(20, 30, 300, 200);
+    manager.Update(0);
+    window->SetBounds(50, 60, 400, 300);
+    window->Minimize();
+    window->Restore();
+    window->Maximize();
+    window->Restore();
+    window->SetSizeLimits(180, 100, 350, 250);
+    manager.Update(0);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().x, 50);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().y, 60);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().width, 350);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().height, 250);
+    manager.InjectMouseMove(80, 76);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseMove(100, 96);
+    manager.Update(0);
+    manager.InjectMouseMove(80, 76);
+    manager.Update(0);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().x, 50);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().y, 60);
+}
+
+TEST(WindowWidget, TitleButtonsStatesVisibilityAndParentResize) {
+    UIManager manager(nullptr);
+    manager.SetDisplaySize(800, 600);
+    auto* window = manager.GetRoot().CreateChild<UIWindow>("Window");
+    window->SetBounds(50, 60, 300, 200);
+    manager.Update(0);
+    const auto click = [&](WindowButton button) {
+        const auto rect = window->GetButtonRect(button);
+        manager.InjectMouseMove(rect.x + 10, rect.y + 10);
+        manager.InjectMouseButton(MouseButton::Left, true);
+        manager.InjectMouseButton(MouseButton::Left, false);
+        manager.Update(0);
+    };
+    window->SetButtonMode(WindowButton::Close, WindowButtonMode::Disabled);
+    click(WindowButton::Close);
+    EXPECT_TRUE(window->IsVisible());
+    window->SetButtonMode(WindowButton::Close, WindowButtonMode::Hidden);
+    EXPECT_FLOAT_EQ(window->GetButtonRect(WindowButton::Close).width, 0);
+    click(WindowButton::Minimize);
+    EXPECT_EQ(window->GetWindowState(), WindowState::Minimized);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().height, 32);
+    EXPECT_FALSE(window->GetContent()->GetParent()->IsVisible());
+    click(WindowButton::Minimize);
+    EXPECT_EQ(window->GetWindowState(), WindowState::Normal);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().height, 200);
+    click(WindowButton::Maximize);
+    EXPECT_EQ(window->GetWindowState(), WindowState::Maximized);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().width, 800);
+    manager.SetDisplaySize(640, 480);
+    manager.Update(0);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().width, 640);
+    click(WindowButton::Minimize);
+    click(WindowButton::Minimize);
+    EXPECT_EQ(window->GetWindowState(), WindowState::Maximized);
+    click(WindowButton::Maximize);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().x, 50);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().height, 200);
+    window->SetButtonMode(WindowButton::Close, WindowButtonMode::Enabled);
+    click(WindowButton::Close);
+    EXPECT_FALSE(window->IsVisible());
+    window->SetVisible(true);
+    EXPECT_TRUE(window->IsVisible());
+}
+
+TEST(WindowWidget, ContentClickRaisesWindowWithoutMovingIt) {
+    UIManager manager(nullptr);
+    auto* back = manager.GetRoot().CreateChild<UIWindow>("Back");
+    back->SetBounds(0, 0, 300, 200);
+    auto* button = back->GetContent()->CreateChild<UIButton>();
+    button->SetAllPoints(back->GetContent());
+    auto* front = manager.GetRoot().CreateChild<UIWindow>("Front");
+    front->SetBounds(150, 0, 300, 200);
+    int clicks = 0;
+    button->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    manager.Update(0);
+    for (float x : {50.0f, 200.0f}) {
+        manager.InjectMouseMove(x, 60);
+        manager.InjectMouseButton(MouseButton::Left, true);
+        manager.InjectMouseButton(MouseButton::Left, false);
+    }
+    EXPECT_EQ(clicks, 2);
+    EXPECT_FLOAT_EQ(back->GetComputedRect().x, 0);
+}
+
+TEST(WindowWidget, EachTitleButtonCanBeDisabledOrHidden) {
+    UIManager manager(nullptr);
+    auto* window = manager.GetRoot().CreateChild<UIWindow>();
+    window->SetBounds(20, 20, 300, 200);
+    manager.Update(0);
+    for (auto button : {WindowButton::Minimize, WindowButton::Maximize, WindowButton::Close}) {
+        window->SetButtonMode(button, WindowButtonMode::Disabled);
+        const auto rect = window->GetButtonRect(button);
+        manager.InjectMouseMove(rect.x + 10, rect.y + 10);
+        manager.InjectMouseButton(MouseButton::Left, true);
+        manager.InjectMouseButton(MouseButton::Left, false);
+        EXPECT_EQ(window->GetWindowState(), WindowState::Normal);
+        EXPECT_TRUE(window->IsVisible());
+        window->SetButtonMode(button, WindowButtonMode::Hidden);
+        EXPECT_FLOAT_EQ(window->GetButtonRect(button).width, 0);
+    }
+}
+
+TEST(WindowWidget, CapturePairsButtonsCancelsLocksAndIgnoresHiddenWindow) {
+    UIManager manager(nullptr);
+    auto* window = manager.GetRoot().CreateChild<UIWindow>();
+    window->SetBounds(20, 20, 300, 200);
+    manager.Update(0);
+    manager.InjectMouseMove(60, 36);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Right, false);
+    manager.InjectMouseMove(80, 46);
+    manager.Update(0);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().x, 40);
+    window->SetMovable(false);
+    manager.InjectMouseMove(120, 80);
+    manager.Update(0);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().x, 40);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    window->SetMovable(true);
+    manager.InjectMouseMove(80, 46);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    window->SetVisible(false);
+    manager.InjectMouseMove(140, 90);
+    manager.Update(0);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().x, 40);
+    manager.InjectMouseButton(MouseButton::Left, false);
+}
+
+TEST(WindowWidget, MinimizedMoveRestoresNewPositionAndEmitsDedicatedEvents) {
+    UIManager manager(nullptr);
+    auto* window = manager.GetRoot().CreateChild<UIWindow>();
+    window->SetBounds(20, 20, 300, 200);
+    int states = 0, closes = 0;
+    window->RegisterCallback(UIEventType::OnWindowStateChanged, [&](const UIEventData&) { ++states; });
+    window->RegisterCallback(UIEventType::OnClose, [&](const UIEventData&) { ++closes; });
+    manager.Update(0);
+    window->Minimize();
+    manager.Update(0);
+    manager.InjectMouseMove(60, 36);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseMove(90, 56);
+    manager.Update(0);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    window->Restore();
+    manager.Update(0);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().x, 50);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().y, 40);
+    EXPECT_FLOAT_EQ(window->GetComputedRect().height, 200);
+    EXPECT_EQ(states, 2);
+    window->Close();
+    window->Close();
+    EXPECT_EQ(closes, 1);
+}
+
+TEST(SelectionControls, CheckboxMouseKeyboardAndDisabledState) {
+    UIManager manager(nullptr);
+    auto* checkbox = manager.GetRoot().CreateChild<UICheckBox>();
+    checkbox->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    int changes = 0;
+    checkbox->RegisterCallback(UIEventType::OnValueChanged, [&](const UIEventData&) { ++changes; });
+    manager.Update(0.0f);
+    manager.InjectMouseMove(40.0f, 10.0f);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_TRUE(checkbox->IsChecked());
+    manager.InjectKeyEvent(ScanCode::Space, true);
+    manager.InjectKeyEvent(ScanCode::Space, true);
+    manager.InjectKeyEvent(ScanCode::Space, false);
+    EXPECT_FALSE(checkbox->IsChecked());
+    EXPECT_EQ(changes, 2);
+    checkbox->SetEnabled(false);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_FALSE(checkbox->IsChecked());
+    EXPECT_EQ(changes, 2);
+    checkbox->SetChecked(true);
+    checkbox->SetChecked(true);
+    EXPECT_EQ(changes, 3);
+}
+
+TEST(SelectionControls, RadioGroupsAreExclusiveScopedAndNotifyAfterSelection) {
+    UIManager manager(nullptr);
+    auto* first = manager.GetRoot().CreateChild<UIRadioButton>();
+    auto* second = manager.GetRoot().CreateChild<UIRadioButton>();
+    auto* independent = manager.GetRoot().CreateChild<UIRadioButton>();
+    independent->SetGroup("Other");
+    auto* parent = manager.GetRoot().CreateChild<UIWidget>();
+    auto* nested = parent->CreateChild<UIRadioButton>();
+    first->SetChecked(true);
+    independent->SetChecked(true);
+    nested->SetChecked(true);
+    int changes = 0;
+    first->RegisterCallback(UIEventType::OnValueChanged, [&](const UIEventData&) {
+        EXPECT_FALSE(first->IsChecked());
+        EXPECT_TRUE(second->IsChecked());
+        ++changes;
+    });
+    second->RegisterCallback(UIEventType::OnValueChanged, [&](const UIEventData&) { ++changes; });
+    second->SetChecked(true);
+    second->SetChecked(true);
+    EXPECT_EQ(changes, 2);
+    EXPECT_TRUE(independent->IsChecked());
+    EXPECT_TRUE(nested->IsChecked());
+    second->FireEvent(UIEventData{UIEventType::OnClick});
+    EXPECT_TRUE(second->IsChecked());
+    EXPECT_EQ(changes, 2);
+}
+
+namespace {
 class CompoundWidgets : public testing::Test {
 protected:
     std::shared_ptr<RecordingRenderer> renderer = std::make_shared<RecordingRenderer>();
@@ -24,6 +390,31 @@ protected:
         manager.InjectMouseButton(button, false);
     }
 };
+}
+
+TEST_F(CompoundWidgets, DropdownRendersLabelsAndReusesOnlyCurrentOptions) {
+    auto* dropdown = manager.GetRoot().CreateChild<UIDropDownBox>();
+    dropdown->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    dropdown->SetSize(160, 28);
+    dropdown->SetOptions({"Draft", "Final", "Old"});
+    dropdown->Toggle();
+    manager.Update(0);
+    manager.Render();
+    std::vector<std::string> labels;
+    for (const auto& command : renderer->bucket) if (command.type == RenderCommandType::DrawString) labels.push_back(command.text);
+    EXPECT_EQ(labels, (std::vector<std::string>{"Draft", "Draft", "Final", "Old"}));
+    dropdown->SetOptions({"New"});
+    EXPECT_FALSE(dropdown->IsExpanded());
+    dropdown->Toggle();
+    manager.Update(0);
+    manager.Render();
+    labels.clear();
+    for (const auto& command : renderer->bucket) if (command.type == RenderCommandType::DrawString) labels.push_back(command.text);
+    EXPECT_EQ(labels, (std::vector<std::string>{"New", "New"}));
+    manager.InjectMouseMove(10, 35);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_FALSE(dropdown->IsExpanded());
 }
 
 TEST_F(CompoundWidgets, ProgressBarClampsAndEmitsHorizontalAndVerticalFill) {

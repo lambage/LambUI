@@ -79,6 +79,21 @@ Wheel input still uses the nearest `IScrollable` ancestor; keyboard/character
 input still uses the focused `IFocusable`. Game-event subscriptions are a
 separate broadcast mechanism and do not bubble.
 
+### Scroll containers
+
+Create scrolling children under `UIScrollContainer::GetContent()` and declare
+their total extent with `SetContentSize(width, height)`. Horizontal and vertical
+scrollbars appear automatically when content overflows. Drag a thumb or click
+the track to page by one viewport; wheel input continues to work over either.
+Thumbs are proportional, with a 20-pixel minimum capped to the available track.
+
+Bars overlay the inside right/bottom edges (12 pixels), preserving the existing
+viewport size and scroll ranges. Leave that space clear when positioning content
+that must remain unobscured. `SetScrollbarsEnabled(false)` hides both bars without
+disabling wheel or programmatic scrolling; `AreScrollbarsEnabled()` reports the
+setting, which defaults to true. Tree views and the example galleries reuse this
+behavior. Rendering uses ordinary clipped quad commands and injected input only.
+
 ### Compound widgets
 
 Include `<LambUI/LambUI.h>` or the individual widget headers. All widgets
@@ -159,6 +174,107 @@ Popup and tooltip bounds are clamped to the display. Labels are single-line;
 tabs divide the available width evenly. Nested submenus, keyboard navigation,
 multiline tooltips, and Lua exposure of the new widgets are not implemented.
 
+### Checkboxes, radio buttons, and windows
+
+`UICheckBox` and `UIRadioButton` expose `SetText`, `SetChecked`, `IsChecked`,
+and `SetEnabled`. Left click or Space/Enter on a focused control activates it;
+key repeats do not retrigger selection. Disabled controls remain visible and
+block click-through, but programmatic changes still work. Changed selections
+emit `OnValueChanged`.
+
+Radio buttons with the same `SetGroup(string)` and immediate parent are
+exclusive; the empty group name is also a group. Clicking an already selected
+radio keeps it selected. Programmatic `SetChecked(false)` can clear a group.
+All peer states are updated before selection callbacks run. Keyboard focus
+cycling and arrow-key group navigation remain future work.
+
+`UIWindow` is a retained widget, not a native OS window. Add application
+widgets beneath `GetContent()` to keep them clipped inside its client area.
+Left-drag the title bar to move, or any edge/corner to resize. Clicking a
+window or its contents raises it above its siblings. `SetMovable(false)` and
+`SetResizable(false)` independently lock these interactions.
+
+```cpp
+auto* window = manager.GetRoot().CreateChild<UIWindow>("Inspector");
+window->SetTitle("Material settings");
+window->SetSizeLimits(260, 180, 900, 700);
+window->SetBounds(40, 60, 360, 280);
+window->SetMovable(true);
+window->SetResizable(false);
+window->SetButtonMode(WindowButton::Minimize, WindowButtonMode::Enabled);
+window->SetButtonMode(WindowButton::Maximize, WindowButtonMode::Disabled);
+window->SetButtonMode(WindowButton::Close, WindowButtonMode::Hidden);
+
+auto* enabled = window->GetContent()->CreateChild<UICheckBox>("Preview");
+enabled->SetText("Live preview");
+enabled->SetPoint(AnchorPoint::TopLeft, window->GetContent(), AnchorPoint::TopLeft, 12, 12);
+enabled->SetChecked(true);
+```
+
+Each title-bar button independently supports `Enabled`, `Disabled` (visible
+but inert), or `Hidden` (takes no space). These policies only govern input;
+the host can still call `Minimize`, `Maximize`, `Restore`, and `Close`.
+Minimize collapses to the title bar and hides client input; maximize fills
+the parent and follows its size. Restore returns to saved normal bounds,
+or to maximized state when minimized from maximized. Close hides without
+destroying content; reopen with `SetVisible(true)`. State transitions emit
+`OnWindowStateChanged`; closing emits `OnClose` once while visible.
+
+`SetBounds` uses parent-relative coordinates, selects normal state, and
+applies size limits. Limits also apply to interactive resize and restore,
+not maximized/minimized sizes or inherited raw `SetSize`/anchor setters.
+Moving converts anchors to a parent-relative top-left position and keeps
+the title bar reachable within the parent. Avoid cross-window sibling
+anchors because activation changes sibling ordering. Mouse capture pairs
+press/release buttons and ignores hidden captured widgets.
+
+### Multiple fonts
+
+`UITextWidget` and `UIInputBox` expose `SetFont(void*)` and `GetFont()`.
+The handle is an opaque key, passed unchanged in `UIRenderCommand::fontHandle`;
+the core never dereferences it or creates GPU resources. A null handle selects
+the default font. The atlas measurer and example renderers also fall back to
+the default for unknown handles.
+
+Register each additional atlas with both the measurer and your renderer using
+the same unique, non-null handle. In the GL/GL33/SDL3 examples:
+
+```cpp
+FontAtlas bodyFont;
+FontAtlas headingFont;
+if (!bodyFont.LoadFromFile("assets/body.ttf", 20) ||
+  !headingFont.LoadFromFile("assets/heading.ttf", 26)) return;
+
+auto measurer = std::make_shared<FontAtlasTextMeasurer>(bodyFont);
+void* headingHandle = &headingFont;
+if (!renderer->LoadFont(bodyFont) ||
+  !renderer->LoadFont(headingFont, headingHandle) ||
+  !measurer->RegisterFont(headingHandle, headingFont)) return;
+
+UIManager manager(renderer, measurer);
+auto* title = manager.GetRoot().CreateChild<UITextWidget>("Title");
+title->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+title->SetTextMeasurer(manager.GetTextMeasurer());
+title->SetText("Inventory");
+title->SetFont(headingHandle);
+```
+
+`FontAtlasTextMeasurer::RegisterFont` returns false for null or duplicate keys
+without changing the existing registration. The example renderers reserve
+`LoadFont(atlas)` for the default and reject duplicate keys or failed uploads.
+`GetFont(handle)` on the atlas measurer resolves a key to its atlas, including
+default fallback. Registration is additive; replacement/unregistration is not
+supported. Register fonts before assigning them to text widgets.
+
+Atlases are borrowed: keep them alive and unchanged while registered, and keep
+handle identities stable. Renderer instances own their uploaded textures and
+must be destroyed before their graphics context. Widgets borrow their measurer.
+Changing a text widget's font, text, or measurer recalculates its intrinsic
+size; explicit anchors still control final layout. Input fields retain their
+explicit size. Existing compound-control labels continue using the default
+font. Custom `IRenderer`/`ITextMeasurer` implementations must agree on handle
+mapping and fallback; the HAL has no new virtual methods.
+
 ### Known limitations (by design, for now)
 
 - Anchors must reference a widget that has *already* been positioned this
@@ -238,8 +354,9 @@ cmake --build build --target lambui_example_opengl33
 
 Requires a driver supporting OpenGL 3.3 core. The legacy example remains
 available independently. The demo finds a common system font on Windows,
-Linux, or macOS; use `--font "path/to/font.ttf"` to select another font.
-Escape closes the window. Shader sources are embedded in
+Linux, or macOS; use `--font "path/to/font.ttf"` for body text and
+`--heading-font "path/to/heading.ttf"` for the title font.
+Escape dismisses an open menu; otherwise it closes the window. Shader sources are embedded in
 [GL33ExampleRenderer.cpp](examples/opengl33_glfw/src/GL33ExampleRenderer.cpp).
 
 All graphics resources and input callbacks belong to the example. The canvas
@@ -247,7 +364,8 @@ is drawn through `CustomCallback` in LambUI's command bucket; neither shader
 logic nor GLFW polling enters the core library. Text uses `GL_R8` sampling
 and `fwidth`/`smoothstep`. Nested scissors convert logical window coordinates
 to framebuffer pixels for high-DPI displays. Texture handles in this backend
-encode a `GLuint` through `uintptr_t`; one font atlas is supported.
+encode a `GLuint` through `uintptr_t`; font handles independently select
+registered atlas/texture pairs.
 
 Run the bounded native GPU checks (requires a working desktop GL context):
 
@@ -258,10 +376,73 @@ Run the bounded native GPU checks (requires a working desktop GL context):
 This checks shader compilation/linking, SDF coverage, texture UV sampling,
 nested clipping, state recovery after a custom callback, injected button and
 slider input, and changing shader output at wide and compact window sizes.
+Normal-size text is also checked for soft edges and solid strokes at
+1x/1.5x/2x display scales and integer/half-pixel positions. The font shader
+uses a widened derivative-based SDF transition to reduce small-text aliasing.
+The smoke checks also verify registered atlas metrics, distinct heading-font
+pixels, and exact default-font fallback for an unknown handle.
 It exits nonzero on failure and optionally writes `*-desktop.ppm` and
 `*-compact.ppm` screenshots. These GPU checks are separate from CTest so the
 core tests remain runnable without a display. GL resources are released
 before the GLFW context is destroyed.
+
+### Compound widget showcases
+
+The OpenGL 3.3 and SDL3 examples both use
+[WidgetShowcase.h](examples/common/WidgetShowcase.h), an example-only,
+backend-independent gallery of the available controls and containers. The GL demo keeps
+its animated contour canvas and distortion controls, with an asset inspector
+overlaid on the right. SDL3 presents a resizable asset browser. The legacy GL
+and Vulkan examples remain unchanged.
+
+```powershell
+cmake --build build --target lambui_example_opengl33 lambui_example_sdl3
+.\build\examples\opengl33_glfw\lambui_example_opengl33.exe
+.\build\examples\sdl3\lambui_example_sdl3.exe
+```
+
+- **Assets:** select tree rows, expand/collapse folders, and scroll the list.
+- **Build job:** inspect the selected asset and pause/resume or restart a
+  simulated build. Its progress bar advances with real frame time.
+- **Controls:** checkbox, radio groups, a disabled checkbox, speed slider,
+  editable asset name, labeled dropdown, and custom-rendered material canvas.
+- **Window:** live move/resize toggles and independent On/Off/Hide settings
+  for minimize, maximize, and close. Open preview creates no new objects:
+  it reopens/repositions the retained window. Scroll for lower settings on
+  compact displays; View > Open preview also remains available after closing.
+- **View / Build menus:** switch tabs and control the build through menu actions.
+- **Context menu:** right-click the tree for build and folder actions; the
+  menu also shows a separator and a disabled action. Outside clicks or Escape
+  dismiss it without clicking through to another control.
+- **Tooltips:** hover over the tree or build pause button. GL's animation
+  pause button and distortion slider also have tooltips.
+
+Both demos use a 20px body font to fit fixed-height widget rows and a separate
+26px heading font. They discover a system serif face for headings, falling
+back to the body face at 26px when none is available. SDL3 supports the same
+`--font path` and `--heading-font path` overrides and system-font discovery
+as GL, with native font-selection pixel checks. Its resources are released before the SDL renderer and
+window are destroyed. Platform input and frame timing stay in each backend;
+the shared composition uses only LambUI APIs.
+
+Run bounded native checks and capture all views:
+
+```powershell
+.\build\examples\opengl33_glfw\lambui_example_opengl33.exe --smoke-test --screenshot build/widgets-gl
+.\build\examples\sdl3\lambui_example_sdl3.exe --smoke-test --screenshot build/widgets-sdl
+```
+
+The shared smoke sequence injects tab/button clicks, tree selection and
+expansion, wheel scrolling, context-menu actions, and Escape dismissal. It also
+checks checkbox keyboard activation, radio exclusivity, text entry, dropdown
+selection, window policies, drag/resize, title buttons, and close/reopen.
+GL additionally verifies its renderer and animated shader pixels; SDL checks
+for nonblank rendering and changed pixels across captured views.
+The screenshot prefix produces desktop/compact assets, menu, job, tooltip,
+controls, inputs, canvas, window settings, normal/minimized/maximized window
+captures (`.ppm` for GL, `.bmp` for SDL). GL runs at 1100x720 and 420x720;
+SDL at 920x680 and 420x680. These tests require a native desktop renderer
+and remain separate from headless CTest.
 
 ## Lua bindings
 

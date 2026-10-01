@@ -36,7 +36,7 @@ void main() {
         fragmentColor = texture(image, uv) * tint;
     } else if (mode == 2) {
         float distanceValue = texture(image, uv).r;
-        float smoothing = max(fwidth(distanceValue) * 0.5, 1.0 / 255.0);
+        float smoothing = max(fwidth(distanceValue), 1.0 / 255.0);
         float coverage = smoothstep(edge - smoothing, edge + smoothing, distanceValue);
         fragmentColor = vec4(tint.rgb, tint.a * coverage);
     } else if (mode == 3) {
@@ -75,7 +75,7 @@ GL33ExampleRenderer::GL33ExampleRenderer() {
 
 GL33ExampleRenderer::~GL33ExampleRenderer() {
     LAMBUI_LOGT(TAG, "Destroy");
-    glDeleteTextures(1, &m_fontTexture);
+    for (const auto& entry : m_fonts) glDeleteTextures(1, &entry.second.second);
     glDeleteBuffers(1, &m_vertexBuffer);
     glDeleteVertexArrays(1, &m_vertexArray);
     glDeleteProgram(m_program);
@@ -135,12 +135,12 @@ void GL33ExampleRenderer::SetViewportSize(int width, int height, int framebuffer
     m_framebufferHeight = framebufferHeight;
 }
 
-bool GL33ExampleRenderer::LoadFont(const FontAtlas& atlas) {
-    LAMBUI_LOGT(TAG, "LoadFont({}x{})", atlas.GetAtlasWidth(), atlas.GetAtlasHeight());
-    if (atlas.GetAtlasPixels().empty()) return false;
-    m_fontAtlas = &atlas;
-    if (!m_fontTexture) glGenTextures(1, &m_fontTexture);
-    glBindTexture(GL_TEXTURE_2D, m_fontTexture);
+bool GL33ExampleRenderer::LoadFont(const FontAtlas& atlas, void* fontHandle) {
+    LAMBUI_LOGT(TAG, "LoadFont({}, {}x{})", fmt::ptr(fontHandle), atlas.GetAtlasWidth(), atlas.GetAtlasHeight());
+    if (atlas.GetAtlasPixels().empty() || m_fonts.count(fontHandle)) return false;
+    GLuint texture = 0;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
     GLint unpackAlignment = 4;
     glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpackAlignment);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -151,7 +151,12 @@ bool GL33ExampleRenderer::LoadFont(const FontAtlas& atlas) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    return glGetError() == GL_NO_ERROR;
+    if (glGetError() != GL_NO_ERROR) {
+        glDeleteTextures(1, &texture);
+        return false;
+    }
+    m_fonts.emplace(fontHandle, std::make_pair(&atlas, texture));
+    return true;
 }
 
 void GL33ExampleRenderer::SetEffect(float time, float strength) {
@@ -175,7 +180,7 @@ void GL33ExampleRenderer::BindPipeline() {
     glUniform2f(m_displayLocation, static_cast<float>(m_width), static_cast<float>(m_height));
 }
 
-void GL33ExampleRenderer::DrawQuad(const UIRenderCommand& command, int mode, GLuint texture) {
+void GL33ExampleRenderer::DrawQuad(const UIRenderCommand& command, int mode, GLuint texture, float edge) {
     if (m_width <= 0 || m_height <= 0 || m_framebufferWidth <= 0 || m_framebufferHeight <= 0) return;
     BindPipeline();
     const float left = command.x;
@@ -194,7 +199,7 @@ void GL33ExampleRenderer::DrawQuad(const UIRenderCommand& command, int mode, GLu
                 static_cast<float>((command.color >> 8) & 255) / 255.0f,
                 static_cast<float>(command.color & 255) / 255.0f);
     glUniform1i(m_modeLocation, mode);
-    glUniform1f(m_edgeLocation, m_fontAtlas ? m_fontAtlas->GetOnEdgeValue() / 255.0f : 0.5f);
+    glUniform1f(m_edgeLocation, edge);
     glUniform1f(m_timeLocation, m_time);
     glUniform1f(m_strengthLocation, m_strength);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -202,15 +207,18 @@ void GL33ExampleRenderer::DrawQuad(const UIRenderCommand& command, int mode, GLu
 }
 
 void GL33ExampleRenderer::DrawString(const UIRenderCommand& command) {
-    if (!m_fontAtlas || !m_fontTexture) return;
+    auto found = m_fonts.find(command.fontHandle);
+    if (found == m_fonts.end()) found = m_fonts.find(nullptr);
+    if (found == m_fonts.end()) return;
+    const auto& [atlas, texture] = found->second;
     float penX = command.x;
     for (unsigned char character : command.text) {
-        const auto* glyph = m_fontAtlas->FindGlyph(static_cast<char32_t>(character));
+        const auto* glyph = atlas->FindGlyph(static_cast<char32_t>(character));
         if (!glyph) continue;
         if (glyph->width > 0.0f && glyph->height > 0.0f) {
             UIRenderCommand quad;
             quad.x = penX + glyph->bearingX;
-            quad.y = command.y + m_fontAtlas->GetAscent() + glyph->bearingY;
+            quad.y = command.y + atlas->GetAscent() + glyph->bearingY;
             quad.width = glyph->width;
             quad.height = glyph->height;
             quad.u0 = glyph->u0;
@@ -218,7 +226,7 @@ void GL33ExampleRenderer::DrawString(const UIRenderCommand& command) {
             quad.u1 = glyph->u1;
             quad.v1 = glyph->v1;
             quad.color = command.color;
-            DrawQuad(quad, 2, m_fontTexture);
+            DrawQuad(quad, 2, texture, atlas->GetOnEdgeValue() / 255.0f);
         }
         penX += glyph->advance;
     }

@@ -1,74 +1,191 @@
 #include "SDLExampleRenderer.h"
-#include "LambUI/LambUI.h"
+#include "../../common/WidgetShowcase.h"
 
 #include <SDL3/SDL.h>
-#include <iostream>
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
 #include <memory>
+#include <string>
 
 using namespace LambUI;
 
-int main() {
-    LambUI::Log::UseDefaultConsoleSink();
+namespace {
+constexpr const char* TAG = "SDLExample";
 
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        std::cerr << "Failed to initialize SDL: " << SDL_GetError() << "\n";
-        return -1;
+bool CheckPixels(SDL_Renderer* renderer, const std::string& screenshotPath, Uint64& digest) {
+    LAMBUI_LOGT(TAG, "CheckPixels('{}')", screenshotPath);
+    SDL_Surface* surface = SDL_RenderReadPixels(renderer, nullptr);
+    if (!surface) {
+        LAMBUI_LOGE(TAG, "ReadPixels: {}", SDL_GetError());
+        return false;
     }
-
-    SDL_Window* window = nullptr;
-    SDL_Renderer* sdlRenderer = nullptr;
-    if (!SDL_CreateWindowAndRenderer("LambUI - SDL3 Example", 1280, 720, 0, &window, &sdlRenderer)) {
-        std::cerr << "Failed to create window/renderer: " << SDL_GetError() << "\n";
-        SDL_Quit();
-        return -1;
+    bool passed = true;
+    digest = 14695981039346656037ull;
+    if (!screenshotPath.empty()) passed = SDL_SaveBMP(surface, screenshotPath.c_str());
+    size_t distinct = 0;
+    Uint8 baseRed = 0, baseGreen = 0, baseBlue = 0, baseAlpha = 0;
+    passed = SDL_ReadSurfacePixel(surface, 0, 0, &baseRed, &baseGreen, &baseBlue, &baseAlpha) && passed;
+    for (int row = 0; row < surface->h; row += 8) {
+        for (int column = 0; column < surface->w; column += 8) {
+            Uint8 red = 0, green = 0, blue = 0, alpha = 0;
+            if (!SDL_ReadSurfacePixel(surface, column, row, &red, &green, &blue, &alpha)) passed = false;
+            digest = (digest ^ red) * 1099511628211ull;
+            digest = (digest ^ green) * 1099511628211ull;
+            digest = (digest ^ blue) * 1099511628211ull;
+            if (red != baseRed || green != baseGreen || blue != baseBlue) ++distinct;
+        }
     }
+    SDL_DestroySurface(surface);
+    passed = distinct > 100 && passed;
+    LAMBUI_LOGI(TAG, "Pixel smoke: {} ({} non-background samples)", passed ? "PASS" : "FAIL", distinct);
+    return passed;
+}
 
+bool CheckClipping(SDL_Renderer* renderer, SDLExampleRenderer& adapter) {
+    LAMBUI_LOGT(TAG, "CheckClipping");
+    bool passed = true;
+    for (const UIRect hidden : {UIRect{80, 16, 16, 16}, UIRect{16, 80, 16, 16},
+                               UIRect{-40, 16, 16, 16}, UIRect{16, -40, 16, 16},
+                               UIRect{24, 24, 0, 16}}) {
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        UIRenderCommand outer, inner, fill, text, callback, pop, marker;
+        outer.type = inner.type = RenderCommandType::PushScissor;
+        outer.x = outer.y = 16;
+        outer.width = outer.height = 32;
+        inner.x = hidden.x;
+        inner.y = hidden.y;
+        inner.width = hidden.width;
+        inner.height = hidden.height;
+        fill.width = fill.height = 64;
+        fill.color = 0xFF0000FFu;
+        text.type = RenderCommandType::DrawString;
+        text.text = "Clipped";
+        callback.type = RenderCommandType::CustomCallback;
+        callback.customRenderFunc = [renderer](const UICustomRenderArgs&) {
+            LAMBUI_LOGT(TAG, "Clipping probe canvas");
+            SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+            const SDL_FRect bounds{0, 0, 64, 64};
+            SDL_RenderFillRect(renderer, &bounds);
+        };
+        pop.type = RenderCommandType::PopScissor;
+        marker.x = marker.y = 20;
+        marker.width = marker.height = 4;
+        marker.color = 0x0000FFFFu;
+        adapter.SubmitRenderCommands({outer, fill, inner, fill, text, callback, outer,
+                                       fill, pop, pop, marker, pop});
+        marker.x = marker.y = 4;
+        marker.color = 0xFFFFFFFFu;
+        adapter.SubmitRenderCommands({marker});
+        const SDL_Rect region{0, 0, 64, 64};
+        SDL_Surface* surface = SDL_RenderReadPixels(renderer, &region);
+        if (!surface) return false;
+        for (int row = 0; row < 64; ++row) {
+            for (int column = 0; column < 64; ++column) {
+                Uint8 red = 0, green = 0, blue = 0, alpha = 0;
+                const bool parent = column >= 16 && column < 48 && row >= 16 && row < 48;
+                const bool restored = column >= 20 && column < 24 && row >= 20 && row < 24;
+                const bool unclipped = column >= 4 && column < 8 && row >= 4 && row < 8;
+                passed = SDL_ReadSurfacePixel(surface, column, row, &red, &green, &blue, &alpha) && passed;
+                passed = red == ((parent && !restored) || unclipped ? 255 : 0) &&
+                         green == (unclipped ? 255 : 0) &&
+                         blue == (restored || unclipped ? 255 : 0) && passed;
+            }
+        }
+        SDL_DestroySurface(surface);
+    }
+    LAMBUI_LOGI(TAG, "Nested empty-clip pixels and restoration: {}", passed ? "PASS" : "FAIL");
+    return passed;
+}
+
+bool CheckFonts(SDL_Renderer* renderer, SDLExampleRenderer& adapter, void* headingFont) {
+    LAMBUI_LOGT(TAG, "CheckFonts");
+    UIRenderCommand text;
+    text.type = RenderCommandType::DrawString;
+    text.text = "LambUI 0123";
+    text.x = text.y = 8.0f;
+    const auto capture = [&](void* fontHandle, Uint64& digest) {
+        text.fontHandle = fontHandle;
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        adapter.SubmitRenderCommands({text});
+        const SDL_Rect region{0, 0, 320, 64};
+        SDL_Surface* surface = SDL_RenderReadPixels(renderer, &region);
+        if (!surface) return false;
+        digest = 14695981039346656037ull;
+        size_t ink = 0;
+        bool valid = true;
+        for (int row = 0; row < surface->h; ++row) {
+            for (int column = 0; column < surface->w; ++column) {
+                Uint8 red = 0, green = 0, blue = 0, alpha = 0;
+                valid = SDL_ReadSurfacePixel(surface, column, row, &red, &green, &blue, &alpha) && valid;
+                digest = (digest ^ red) * 1099511628211ull;
+                if (red > 0) ++ink;
+            }
+        }
+        SDL_DestroySurface(surface);
+        return valid && ink > 20;
+    };
+    Uint64 bodyPixels = 0, headingPixels = 0, fallbackPixels = 0;
+    const bool passed = capture(nullptr, bodyPixels) && capture(headingFont, headingPixels) &&
+        capture(&text, fallbackPixels) && bodyPixels != headingPixels && bodyPixels == fallbackPixels;
+    LAMBUI_LOGI(TAG, "Multiple-font pixels and fallback: {}", passed ? "PASS" : "FAIL");
+    return passed;
+}
+
+int RunExample(SDL_Window* window, SDL_Renderer* sdlRenderer, const std::string& fontPath,
+               const std::string& headingFontPath,
+               bool smoke, const std::string& screenshotPrefix) {
+    LAMBUI_LOGT(TAG, "RunExample(smoke={})", smoke);
+    FontAtlas fontAtlas;
     auto renderer = std::make_shared<SDLExampleRenderer>(sdlRenderer);
-
-    // Demo-only: loads a local system font. Real consumers should ship/point
-    // at their own TTF asset; FontAtlas::LoadFromFile takes any TTF/OTF path.
-    auto fontAtlas = std::make_shared<FontAtlas>();
-    std::shared_ptr<FontAtlasTextMeasurer> textMeasurer;
-    if (fontAtlas->LoadFromFile("C:/Windows/Fonts/segoeui.ttf")) {
-        renderer->LoadFont(*fontAtlas);
-        textMeasurer = std::make_shared<FontAtlasTextMeasurer>(*fontAtlas);
+    if (!fontAtlas.LoadFromFile(fontPath, 20) || !renderer->LoadFont(fontAtlas)) {
+        LAMBUI_LOGE(TAG, "Cannot load font '{}'; pass --font <path-to-ttf>", fontPath);
+        return 1;
     }
-
+    auto textMeasurer = std::make_shared<FontAtlasTextMeasurer>(fontAtlas);
+    FontAtlas headingAtlas;
+    if (!headingAtlas.LoadFromFile(headingFontPath, 26) || !renderer->LoadFont(headingAtlas, &headingAtlas) ||
+        !textMeasurer->RegisterFont(&headingAtlas, headingAtlas)) {
+        LAMBUI_LOGE(TAG, "Cannot register heading font '{}'", headingFontPath);
+        return 1;
+    }
     UIManager uiManager(renderer, textMeasurer);
-    uiManager.SetDisplaySize(1280.0f, 720.0f);
-
     SDL_StartTextInput(window);
-
-    // --- Build the same small demo UI tree as the other backends ---
-    UIWidget& root = uiManager.GetRoot();
-
-    UIWidget* panel = root.CreateChild<UIWidget>("Panel");
-    panel->SetSize(220.0f, 140.0f);
-    panel->SetPoint(AnchorPoint::TopLeft, &root, AnchorPoint::TopLeft, 20.0f, 20.0f);
-
-    UITextureWidget* background = panel->CreateChild<UITextureWidget>("PanelBackground");
-    background->SetAllPoints(panel);
-    background->SetTint(0xFF2B2B2Bu);
-
-    UIButton* button = panel->CreateChild<UIButton>("DemoButton");
-    button->SetSize(180.0f, 40.0f);
-    button->SetPoint(AnchorPoint::Top, panel, AnchorPoint::Top, 0.0f, 16.0f);
-    button->RegisterCallback(UIEventType::OnClick, [](const UIEventData&) {
-        std::cout << "DemoButton clicked!\n";
+    auto* title = uiManager.GetRoot().CreateChild<UITextWidget>("Title");
+    title->SetMouseEnabled(false);
+    title->SetTextMeasurer(uiManager.GetTextMeasurer());
+    title->SetFont(&headingAtlas);
+    title->SetText("LambUI / Asset Browser");
+    title->SetPoint(AnchorPoint::TopLeft, &uiManager.GetRoot(), AnchorPoint::TopLeft, 24.0f, 20.0f);
+    title->SetColor(0xB9E5D8FFu);
+    LambUIExamples::WidgetShowcase widgets(uiManager, [sdlRenderer](const UICustomRenderArgs& args) {
+        const UIRect rect{args.viewportX, args.viewportY, args.viewportWidth, args.viewportHeight};
+        SDL_SetRenderDrawColor(sdlRenderer, 18, 44, 40, 255);
+        SDL_FRect background{rect.x, rect.y, rect.width, rect.height};
+        SDL_RenderFillRect(sdlRenderer, &background);
+        SDL_SetRenderDrawColor(sdlRenderer, 103, 219, 179, 255);
+        for (int band = 0; band < 14; ++band) {
+            SDL_FPoint points[65];
+            for (int sample = 0; sample <= 64; ++sample) {
+                const float phase = static_cast<float>(sample) / 64.0f;
+                points[sample] = {rect.x + phase * rect.width,
+                    rect.y + rect.height * (0.08f + band * 0.06f + 0.04f * std::sin(phase * 12.0f + band * 0.6f))};
+            }
+            SDL_RenderLines(sdlRenderer, points, 65);
+        }
     });
-
-    UISlider* slider = panel->CreateChild<UISlider>("DemoSlider");
-    slider->SetSize(180.0f, 16.0f);
-    slider->SetPoint(AnchorPoint::Top, button, AnchorPoint::Bottom, 0.0f, 16.0f);
-    slider->SetMinMaxValues(0.0f, 100.0f);
-
-    UITextWidget* label = panel->CreateChild<UITextWidget>("DemoLabel");
-    label->SetTextMeasurer(uiManager.GetTextMeasurer());
-    label->SetText("Hello, LambUI!");
-    label->SetPoint(AnchorPoint::Top, slider, AnchorPoint::Bottom, 0.0f, 16.0f);
-
     bool running = true;
+    bool passed = true;
+    bool screenshotSaved = false;
+    int smokeFrame = 0;
+    int previousWidth = -1, previousHeight = -1;
+    Uint64 previousTime = SDL_GetTicksNS();
     while (running) {
+        if (smoke) {
+            if (!SDL_SetWindowSize(window, smokeFrame == 0 ? 920 : 420, 680) || !SDL_SyncWindow(window)) return 1;
+        }
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
@@ -90,44 +207,134 @@ int main() {
                     MouseButton mapped = MouseButton::Left;
                     if (event.button.button == SDL_BUTTON_RIGHT) mapped = MouseButton::Right;
                     else if (event.button.button == SDL_BUTTON_MIDDLE) mapped = MouseButton::Middle;
+                    else if (event.button.button != SDL_BUTTON_LEFT) break;
+                    uiManager.InjectMouseMove(event.button.x, event.button.y);
                     uiManager.InjectMouseButton(mapped, event.button.down);
                     break;
                 }
                 case SDL_EVENT_KEY_DOWN:
                 case SDL_EVENT_KEY_UP:
-                    // SDL's keycodes for control characters (backspace/enter/escape)
-                    // are numerically equal to their ASCII values, matching LambUI::ScanCode.
                     uiManager.InjectKeyEvent(static_cast<uint32_t>(event.key.key), event.key.down);
                     break;
                 case SDL_EVENT_TEXT_INPUT:
-                    // Simplified: only forwards ASCII bytes for this demo.
-                    for (const char* c = event.text.text; *c != '\0'; ++c) {
-                        if (static_cast<unsigned char>(*c) < 0x80) {
-                            uiManager.InjectCharacter(static_cast<char32_t>(*c));
+                    for (const char* character = event.text.text; *character != '\0'; ++character) {
+                        if (static_cast<unsigned char>(*character) < 0x80) {
+                            uiManager.InjectCharacter(static_cast<char32_t>(*character));
                         }
                     }
-                    break;
-                case SDL_EVENT_WINDOW_RESIZED:
-                    uiManager.SetDisplaySize(static_cast<float>(event.window.data1),
-                                              static_cast<float>(event.window.data2));
                     break;
                 default:
                     break;
             }
         }
 
-        uiManager.Update(0.0f);
-
-        SDL_SetRenderDrawColor(sdlRenderer, 25, 25, 30, 255);
+        if (!running) break;
+        int width = 0, height = 0;
+        SDL_GetWindowSize(window, &width, &height);
+        if (width != previousWidth || height != previousHeight) {
+            LAMBUI_LOGT(TAG, "Resize({}, {})", width, height);
+            uiManager.SetDisplaySize(static_cast<float>(width), static_cast<float>(height));
+            widgets.Layout(24.0f, 64.0f, static_cast<float>(width) - 48.0f, static_cast<float>(height) - 88.0f);
+            previousWidth = width;
+            previousHeight = height;
+        }
+        const Uint64 now = SDL_GetTicksNS();
+        const float deltaTime = std::min(static_cast<float>(now - previousTime) / 1.0e9f, 0.1f);
+        previousTime = now;
+        widgets.Update(deltaTime);
+        uiManager.Update(deltaTime);
+        if (smoke) {
+            passed = widgets.SmokeTest() && passed;
+            passed = CheckClipping(sdlRenderer, *renderer) && passed;
+            passed = CheckFonts(sdlRenderer, *renderer, &headingAtlas) && passed;
+        }
+        SDL_SetRenderDrawColor(sdlRenderer, 20, 27, 31, 255);
         SDL_RenderClear(sdlRenderer);
-
         uiManager.Render();
-
+        const std::string suffix = width < 600 ? "-compact.bmp" : "-desktop.bmp";
+        Uint64 basePixels = 0;
+        if (smoke || (!screenshotPrefix.empty() && !screenshotSaved)) {
+            passed = CheckPixels(sdlRenderer, screenshotPrefix.empty() ? "" : screenshotPrefix + suffix, basePixels) && passed;
+            screenshotSaved = true;
+        }
+        if (smoke) {
+            passed = widgets.CaptureViews([&](const char* state) {
+                SDL_SetRenderDrawColor(sdlRenderer, 20, 27, 31, 255);
+                SDL_RenderClear(sdlRenderer);
+                uiManager.Render();
+                Uint64 statePixels = 0;
+                const bool valid = CheckPixels(sdlRenderer, screenshotPrefix.empty() ? "" : screenshotPrefix + "-" + state + suffix, statePixels);
+                return valid && statePixels != basePixels;
+            }) && passed;
+            LAMBUI_LOGI(TAG, "Showcase smoke {}x{}: {}", width, height, passed ? "PASS" : "FAIL");
+        }
         SDL_RenderPresent(sdlRenderer);
+        if (smoke && ++smokeFrame == 2) break;
     }
+    SDL_StopTextInput(window);
+    return passed ? 0 : 1;
+}
+}
 
+int main(int argc, char** argv) {
+    Log::UseDefaultConsoleSink();
+    Log::SetMinLevel(LogLevel::Info);
+    LAMBUI_LOGI(TAG, "Starting SDL3 widget showcase");
+    bool smoke = false;
+    std::string fontPath;
+    std::string headingFontPath;
+    std::string screenshotPrefix;
+    for (int index = 1; index < argc; ++index) {
+        const std::string argument = argv[index];
+        if (argument == "--smoke-test") smoke = true;
+        else if (argument == "--font" && index + 1 < argc) fontPath = argv[++index];
+        else if (argument == "--heading-font" && index + 1 < argc) headingFontPath = argv[++index];
+        else if (argument == "--screenshot" && index + 1 < argc) screenshotPrefix = argv[++index];
+        else {
+            LAMBUI_LOGE(TAG, "Usage: lambui_example_sdl3 [--font path] [--heading-font path] [--smoke-test] [--screenshot prefix]");
+            return 1;
+        }
+    }
+    if (fontPath.empty()) {
+        for (const char* candidate : {"C:/Windows/Fonts/segoeui.ttf",
+                                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                                     "/System/Library/Fonts/Supplemental/Arial.ttf"}) {
+            if (std::filesystem::exists(candidate)) {
+                fontPath = candidate;
+                break;
+            }
+        }
+    }
+    if (headingFontPath.empty()) {
+        headingFontPath = fontPath;
+        for (const char* candidate : {"C:/Windows/Fonts/georgia.ttf",
+                                     "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+                                     "/System/Library/Fonts/Supplemental/Georgia.ttf"}) {
+            if (std::filesystem::exists(candidate)) {
+                headingFontPath = candidate;
+                break;
+            }
+        }
+    }
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        LAMBUI_LOGE(TAG, "SDL_Init: {}", SDL_GetError());
+        return 1;
+    }
+    SDL_Window* window = nullptr;
+    SDL_Renderer* sdlRenderer = nullptr;
+    const SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | (smoke ? SDL_WINDOW_HIDDEN : 0);
+    if (!SDL_CreateWindowAndRenderer("LambUI - SDL3 Asset Browser", 920, 680, flags, &window, &sdlRenderer)) {
+        LAMBUI_LOGE(TAG, "CreateWindowAndRenderer: {}", SDL_GetError());
+        SDL_Quit();
+        return 1;
+    }
+    SDL_SetWindowMinimumSize(window, 360, 480);
+    SDL_SetRenderVSync(sdlRenderer, smoke ? 0 : 1);
+    const int result = RunExample(window, sdlRenderer, fontPath, headingFontPath, smoke, screenshotPrefix);
+
+    LAMBUI_LOGT(TAG, "Destroy renderer/window and quit SDL");
     SDL_DestroyRenderer(sdlRenderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    return 0;
+    return result;
 }

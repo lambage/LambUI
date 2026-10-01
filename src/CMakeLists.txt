@@ -25,6 +25,9 @@ add_library(lambui
     UILayoutSolver.cpp
     UIWidget.cpp
     UIControl.cpp
+    UICheckBox.cpp
+    UIRadioButton.cpp
+    UIWindow.cpp
     UIButton.cpp
     UISlider.cpp
     UIProgressBar.cpp

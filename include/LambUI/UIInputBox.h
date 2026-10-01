@@ -19,6 +19,8 @@ public:
 
     const std::string& GetText() const { return m_text; }
     void SetText(const std::string& text);
+    void SetFont(void* fontHandle);
+    void* GetFont() const { return m_fontHandle; }
 
     // IFocusable
     void OnFocusGained() override;
@@ -31,6 +33,7 @@ protected:
 
 private:
     std::string m_text;
+    void* m_fontHandle = nullptr;
     bool m_isFocused = false;
 };
 

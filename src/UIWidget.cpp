@@ -1,4 +1,5 @@
 #include "LambUI/UIWidget.h"
+#include <algorithm>
 
 namespace LambUI {
 
@@ -86,6 +87,14 @@ bool UIWidget::HitTest(float x, float y) const {
 
 void UIWidget::MarkDirty() {
     m_isDirty = true;
+}
+
+void UIWidget::BringToFront() {
+    LAMBUI_LOGT(TAG, "'{}' BringToFront", m_name);
+    if (!m_parent) return;
+    auto& siblings = m_parent->m_children;
+    const auto position = std::find_if(siblings.begin(), siblings.end(), [this](const auto& child) { return child.get() == this; });
+    if (position != siblings.end()) std::rotate(position, position + 1, siblings.end());
 }
 
 void UIWidget::SetComputedRectDirect(const UIRect& rect) {

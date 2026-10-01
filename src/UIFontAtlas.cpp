@@ -137,15 +137,35 @@ const GlyphInfo* FontAtlas::FindGlyph(char32_t codepoint) const {
     return it != m_glyphs.end() ? &it->second : nullptr;
 }
 
-void FontAtlasTextMeasurer::MeasureText(const std::string& text, void* /*fontHandle*/,
+FontAtlasTextMeasurer::FontAtlasTextMeasurer(const FontAtlas& atlas) : m_atlas(atlas) {
+    LAMBUI_LOGT(TAG, "FontAtlasTextMeasurer constructed");
+}
+
+FontAtlasTextMeasurer::~FontAtlasTextMeasurer() {
+    LAMBUI_LOGT(TAG, "FontAtlasTextMeasurer destroyed");
+}
+
+bool FontAtlasTextMeasurer::RegisterFont(void* fontHandle, const FontAtlas& atlas) {
+    LAMBUI_LOGT(TAG, "RegisterFont({})", fmt::ptr(fontHandle));
+    if (!fontHandle) return false;
+    return m_fonts.emplace(fontHandle, &atlas).second;
+}
+
+const FontAtlas& FontAtlasTextMeasurer::GetFont(void* fontHandle) const {
+    const auto found = m_fonts.find(fontHandle);
+    return found != m_fonts.end() ? *found->second : m_atlas;
+}
+
+void FontAtlasTextMeasurer::MeasureText(const std::string& text, void* fontHandle,
                                          float& outWidth, float& outHeight) const {
+    const auto& atlas = GetFont(fontHandle);
     float width = 0.0f;
     for (unsigned char c : text) {
-        const GlyphInfo* glyph = m_atlas.FindGlyph(static_cast<char32_t>(c));
+        const GlyphInfo* glyph = atlas.FindGlyph(static_cast<char32_t>(c));
         if (glyph) width += glyph->advance;
     }
     outWidth = width;
-    outHeight = m_atlas.GetLineHeight();
+    outHeight = atlas.GetLineHeight();
 }
 
 } // namespace LambUI
