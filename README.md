@@ -54,6 +54,31 @@ implementations of that one interface.
   `dynamic_cast<IDraggable*>`/`dynamic_cast<IFocusable*>` rather than
   `UIManager` hardcoding those concrete types.
 
+### Event bubbling
+
+`UIWidget::FireEvent` dispatches to the target, then its logical parents up to
+the root until `UIEventData::handled` is true. Each widget runs `OnEvent`
+followed by its registered callback; consuming an event stops ancestors, not
+the callback on that same widget. Existing `void(const UIEventData&)`
+callbacks remain valid. Callbacks leave events unhandled unless they set the
+mutable flag:
+
+```cpp
+button->RegisterCallback(LambUI::UIEventType::OnClick,
+  [](const LambUI::UIEventData& event) {
+    event.handled = true;
+  });
+```
+
+Mouse down/up/click and value/text/enter-pressed notifications bubble.
+Mouse enter/leave stay target-local. Controls consume press/release events;
+dropdowns also consume toggle and option-selection clicks. Mouse capture and
+focus remain on the original hit widget, and bubbling preserves the original
+payload. Use a fresh event payload for each dispatch (or reset `handled`).
+Wheel input still uses the nearest `IScrollable` ancestor; keyboard/character
+input still uses the focused `IFocusable`. Game-event subscriptions are a
+separate broadcast mechanism and do not bubble.
+
 ### Known limitations (by design, for now)
 
 - Anchors must reference a widget that has *already* been positioned this

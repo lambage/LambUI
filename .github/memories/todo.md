@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, Lua/sol2 bindings) is fully implemented and builds
-clean. Tests pass (15 GoogleTest cases). ~70% feature-complete vs goals.txt.
+clean. Tests pass (23 GoogleTest cases). ~70% feature-complete vs goals.txt.
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -37,9 +37,16 @@ See goals.txt for full architecture vision.
     to the nearest scrollable ancestor (positive pixel deltas move left/up).
   - GL/SDL3 examples forward wheel input and intersect/restore nested clips.
   - Full MSVC/Ninja build and all 15 tests pass (7 scroll-container tests).
-- [ ] Event bubbling
-  - Events only fire on the leaf widget that was hit; unhandled events
-    never propagate up to parent widgets (no bubbling phase at all).
+- [x] Event bubbling
+  - `UIWidget::FireEvent` walks logical parents until `UIEventData::handled`
+    is set; existing const-reference callback signatures remain compatible.
+  - Mouse down/up/click and value/text/enter-pressed events bubble; mouse
+    enter/leave stay target-local. Capture/focus and interface-routed wheel,
+    keyboard, and character input are unchanged.
+  - Controls consume press/release; dropdowns consume toggle/selection clicks
+    so selecting an option cannot reopen the menu. Same-widget callbacks run.
+  - Added 8 regression tests. Full MSVC/Ninja build and all 23 CTest cases
+    pass; optional Lua bindings remain disabled in this build.
 - [ ] Vulkan renderer backend (examples/vulkan)
   - Swapchain + frame loop wired up, but `VulkanExampleRenderer::
     SubmitRenderCommands` only logs commands — no render pass/pipeline,

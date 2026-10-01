@@ -44,8 +44,10 @@ void UIDropDownBox::Toggle() {
 }
 
 void UIDropDownBox::OnEvent(const UIEventData& data) {
+    LAMBUI_LOGT(TAG, "'{}' OnEvent({})", GetName(), ToString(data.type));
     UIControl::OnEvent(data);
     if (data.type == UIEventType::OnClick) {
+        data.handled = true;
         Toggle();
     }
 }
@@ -66,7 +68,9 @@ void UIDropDownBox::RebuildOptionButtons() {
         option->SetVisible(m_isExpanded);
 
         const int index = static_cast<int>(i);
-        option->RegisterCallback(UIEventType::OnClick, [this, index](const UIEventData&) {
+        option->RegisterCallback(UIEventType::OnClick, [this, index](const UIEventData& data) {
+            LAMBUI_LOGT(TAG, "'{}' option click index={}", GetName(), index);
+            data.handled = true;
             SetSelectedIndex(index);
         });
 

@@ -14,13 +14,18 @@ void UIControl::OnEvent(const UIEventData& data) {
     switch (data.type) {
         case UIEventType::OnMouseEnter: m_state = ControlState::Hovered; break;
         case UIEventType::OnMouseLeave: m_state = ControlState::Normal; break;
-        case UIEventType::OnMouseDown: m_state = ControlState::Pressed; break;
+        case UIEventType::OnMouseDown:
+            m_state = ControlState::Pressed;
+            data.handled = true;
+            break;
         case UIEventType::OnMouseUp:
             m_state = (previous == ControlState::Pressed) ? ControlState::Hovered : previous;
+            data.handled = true;
             break;
         default: break;
     }
 
+    LAMBUI_LOGT(TAG, "'{}' OnEvent({}, handled={})", GetName(), ToString(data.type), data.handled);
     if (m_state != previous) {
         LAMBUI_LOGT(TAG, "'{}' state {} -> {}", GetName(), ToString(previous), ToString(m_state));
         MarkDirty();

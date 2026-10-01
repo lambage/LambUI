@@ -36,6 +36,7 @@ struct UIEventData {
     float mouseY = 0.0f;
     MouseButton button = MouseButton::Left;
     bool isDown = false;
+    mutable bool handled = false;
 };
 
 using UIEventCallback = std::function<void(const UIEventData&)>;

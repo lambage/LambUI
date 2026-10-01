@@ -58,10 +58,18 @@ void UIWidget::RegisterCallback(UIEventType type, UIEventCallback callback) {
 
 void UIWidget::FireEvent(const UIEventData& data) {
     LAMBUI_LOGT(TAG, "'{}' FireEvent({})", m_name, ToString(data.type));
-    OnEvent(data);
-    auto it = m_callbacks.find(data.type);
-    if (it != m_callbacks.end()) {
-        it->second(data);
+    const bool bubbles = data.type != UIEventType::OnMouseEnter &&
+                         data.type != UIEventType::OnMouseLeave;
+    for (UIWidget* widget = this; widget && !data.handled; widget = widget->m_parent) {
+        LAMBUI_LOGT(TAG, "'{}' dispatch({})", widget->m_name, ToString(data.type));
+        widget->OnEvent(data);
+        auto it = widget->m_callbacks.find(data.type);
+        if (it != widget->m_callbacks.end() && it->second) {
+            it->second(data);
+        }
+        LAMBUI_LOGT(TAG, "'{}' dispatched({}, handled={})", widget->m_name,
+                    ToString(data.type), data.handled);
+        if (!bubbles) break;
     }
 }
 
