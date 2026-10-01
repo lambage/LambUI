@@ -1,5 +1,6 @@
 #include "LambUI/UITooltip.h"
 #include "LambUI/IRenderer.h"
+#include "UITextLayout.h"
 #include <algorithm>
 #include <cmath>
 
@@ -13,15 +14,22 @@ UITooltip::UITooltip(std::string name) : UIWidget(std::move(name)) {
     SetVisible(false);
 }
 
-void UITooltip::SetText(std::string text, const ITextMeasurer* measurer) {
+void UITooltip::SetText(std::string text, const ITextMeasurer* measurer, float maximumWidth) {
     LAMBUI_LOGT(TAG, "'{}' SetText('{}')", GetName(), text);
     m_text = std::move(text);
-    float width = static_cast<float>(m_text.size()) * 8.0f;
-    float height = 18.0f;
-    if (measurer) measurer->MeasureText(m_text, nullptr, width, height);
-    if (!std::isfinite(width)) width = 0.0f;
-    if (!std::isfinite(height)) height = 0.0f;
-    SetSize(std::max(0.0f, width) + 12.0f, std::max(0.0f, height) + 8.0f);
+    if (!std::isfinite(maximumWidth)) maximumWidth = 320.0f;
+    maximumWidth = std::max(0.0f, maximumWidth);
+    const auto layout = TextLayout::Build(m_text, measurer, nullptr,
+        std::max(0.0f, maximumWidth - 12.0f), true);
+    m_lines.clear();
+    m_lineHeight = layout.lineHeight;
+    float width = 0.0f;
+    for (const auto& line : layout.lines) {
+        m_lines.push_back(m_text.substr(line.begin, line.end - line.begin));
+        width = std::max(width, line.width);
+    }
+    SetSize(std::min(maximumWidth, width + 12.0f),
+        static_cast<float>(m_lines.size()) * m_lineHeight + 8.0f);
 }
 
 void UITooltip::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
@@ -38,9 +46,14 @@ void UITooltip::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
     command.type = RenderCommandType::DrawString;
     command.x += 6.0f;
     command.y += 4.0f;
-    command.text = m_text;
     command.color = 0xFFFFFFFFu;
-    bucket.push_back(command);
+    for (const auto& line : m_lines) {
+        if (!line.empty()) {
+            command.text = line;
+            bucket.push_back(command);
+        }
+        command.y += m_lineHeight;
+    }
     command.type = RenderCommandType::PopScissor;
     bucket.push_back(command);
 }

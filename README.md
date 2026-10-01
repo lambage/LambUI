@@ -1,7 +1,7 @@
 # LambUI
 
 An engine-agnostic, retained-mode UI library for games, in the style of
-World of Warcraft's Point-and-Anchor frame system. LambUI is pure C++17 with
+World of Warcraft's Point-and-Anchor frame system. LambUI is C++14 with
 zero graphics-API dependencies; a companion Lua binding library and a set of
 example renderer backends live alongside it in this same repository.
 
@@ -16,7 +16,7 @@ LambUI/
 ├── cmake/                  # install/export helper modules
 ├── include/LambUI/         # public headers (the library's entire public API)
 ├── src/                    # library implementation (UIWidget, UIManager, ...)
-├── lua/                    # optional sol2-based Lua scripting companion library
+├── lua/                    # optional Lua C API scripting companion library
 ├── examples/               # renderer backend showcases (OpenGL, Vulkan, SDL3)
 └── tests/                  # GoogleTest unit tests (layout solver, events, ...)
 ```
@@ -168,7 +168,7 @@ needed.
 | `UIProgressBar` | `SetMinMaxValues`, `SetValue`, `SetOrientation`, `SetColors`; non-interactive, horizontal or bottom-up vertical fill |
 | `UITabControl` | `AddTab(label)` returns a retained page; `SetSelectedIndex` switches visible pages without losing their state |
 | `UITreeView` | `AddNode(parentId, label)`, `SetExpanded`, `SetSelectedNode`, `SetNodeText`, `ClearNodes`; clipped, wheel-scrollable rows |
-| `UIContextMenu` | `SetItems`, `Open`, `Close`; actions, disabled rows, separators, and scrolling for long menus |
+| `UIContextMenu` | `SetItems`, `Open`, `Close`; actions, nested `UIMenuItem::children`, disabled rows, separators, and scrolling for long menus |
 | `UIMenuBar` | `AddMenu(label, items)` returns a context menu; click to toggle, hover to switch while a menu is open |
 | `UITooltip` | Normally managed automatically through `UIWidget::SetTooltip(text)` and `UIManager::SetTooltipDelay(seconds)` |
 
@@ -192,7 +192,7 @@ auto* tree = page->CreateChild<UITreeView>("Assets");
 tree->SetAllPoints(page);
 const auto folder = tree->AddNode(UITreeView::RootNode, "Textures");
 tree->AddNode(folder, "Portrait");
-tree->SetTooltip("Project assets");
+tree->SetTooltip("Project assets\nLocal workspace");
 
 auto* progress = root.CreateChild<UIProgressBar>("Loading");
 progress->SetPoint(AnchorPoint::TopLeft, &root, AnchorPoint::TopLeft, 12, 292);
@@ -201,7 +201,9 @@ progress->SetMinMaxValues(0, 100);
 progress->SetValue(35);
 
 auto* menu = manager.GetOverlayRoot().CreateChild<UIContextMenu>(manager, "AssetMenu");
-menu->SetItems({{"Collapse", [tree, folder] { tree->SetExpanded(folder, false); }},
+menu->SetItems({{"Folders", {}, true, false, {
+          {"Collapse", [tree, folder] { tree->SetExpanded(folder, false); }},
+          {"Expand", [tree, folder] { tree->SetExpanded(folder, true); }}}},
         {"", {}, true, true}, {"Unavailable", {}, false}});
 tree->RegisterCallback(UIEventType::OnClick, [menu, tree](const UIEventData& event) {
   if (event.button == MouseButton::Right) {
@@ -223,8 +225,14 @@ Create context menus directly under `GetOverlayRoot()` with the same manager;
 normal tree and rendered after its scissor stack has closed. `ShowPopup`
 also accepts a custom overlay widget with an explicit `SetSize`; pass an
 owner to close it when that owner's ancestry becomes hidden. Only one popup
-is active at a time. Outside clicks dismiss it without clicking through;
-Escape closes it. Menu actions close the popup before invoking the callback,
+chain is active at a time; `GetActivePopup()` returns its root. Menu items with
+nonempty `children` open submenus on hover, click, Enter/Space, or Right;
+their own action is ignored. Left returns keyboard focus to the parent row;
+Up/Down, Home/End, and Tab navigate the focused menu, skipping unavailable rows.
+Submenus render outside parent clips, flip left at the right display edge,
+and close when their owning row scrolls out of view. Outside clicks dismiss
+the chain without clicking through; Escape closes the whole chain.
+Menu actions close the chain before invoking the callback,
 so the callback can safely replace items or open another menu. Callbacks must
 not outlive objects they capture, as with other LambUI callbacks.
 
@@ -233,9 +241,13 @@ text. `Update(deltaTime)` takes elapsed seconds and drives the default
 0.5-second delay. Clicks, wheel input, keyboard input, and popup opening hide
 tooltips; they never capture mouse input. Text is measured through
 `ITextMeasurer`, with an approximate monospace fallback when none is supplied.
-Popup and tooltip bounds are clamped to the display. Labels are single-line;
-tabs divide the available width evenly. Nested submenus,
-multiline tooltips, and Lua exposure of the new widgets are not implemented.
+Tooltips preserve CR/LF/CRLF and blank lines, wrap words and long UTF-8 text,
+and reflow after display-size changes. Their width is capped at 320 pixels
+or the display width, including 12 pixels of horizontal padding; excess height
+is clipped to the display. Direct `UITooltip::SetText` calls can supply a third
+`maximumWidth` argument. Popup and tooltip bounds are clamped to the display.
+Other compound labels remain single-line; tabs divide the available width evenly.
+Lua exposure of the new widgets remains pending.
 
 ### Checkboxes, radio buttons, and windows
 
@@ -283,8 +295,15 @@ including `LeftShift` and `RightShift`; text still arrives separately through
   exposed by `GetCursorPosition()` are UTF-8 byte offsets.
 
 Menu rows show keyboard selection using `UIButton::SetKeyboardFocusColor`.
-General focus rings, blinking input cursors, selection, and clipboard support
-remain separate backlog items.
+Focused widgets also receive a two-tone inset outline, drawn after their own
+subtree and within ancestor clips. It follows mouse or keyboard focus without
+changing layout; hidden/disabled targets lose it. Use `SetFocusRingEnabled(false)`
+for custom focus rendering, or `SetFocusRingColor(rgba)` to change its inner color.
+Custom render overrides continue using `GenerateChildRenderCommands` or
+`AppendChildRenderCommands` so children retain focus decoration.
+Buttons show their pressed color while Enter/Space is held; releasing the matching
+key activates once, and focus loss cancels. Enter targets the focused control,
+not an implicit dialog-default button. Clipboard support remains backlog work.
 
 `UIWindow` is a retained widget, not a native OS window. Add application
 widgets beneath `GetContent()` to keep them clipped inside its client area.
@@ -478,9 +497,15 @@ are not selectable; clipboard and Unicode grapheme/shaping support remain separa
 
 ## Building
 
-Requires CMake 3.20+ and a C++17 compiler. All third-party dependencies
-(GoogleTest, GLFW, GLAD, SDL3, sol2, Lua) are fetched on demand via `FetchContent` —
-no vcpkg/Conan setup required.
+Requires CMake 3.20+ and a C++14 compiler, including for the optional Lua bindings
+and examples. A newer parent-project C++ standard is respected. Boost.Optional
+and Boost.Algorithm supply optional values and clamping without compiled Boost
+libraries. Boost 1.85+ is discovered through its CMake config; when unavailable,
+Boost 1.86.0 is fetched from a checksum-pinned archive. The core also uses fmt
+and private stb headers. These and the enabled example/test dependencies
+(GoogleTest, GLFW, GLAD, SDL3) are fetched on demand via `FetchContent`.
+Lua bindings reuse Lua 5.3+ when found, or fetch Lua 5.4.6. No sol2, vcpkg,
+or Conan setup is required.
 The OpenGL 3.3 example also requires Python 3 to generate its GLAD loader
 from the pinned, bundled OpenGL specification.
 
@@ -500,7 +525,7 @@ to let CMake drive `msbuild` itself instead of Ninja.
 |---|---|---|
 | `LAMBUI_BUILD_EXAMPLES` | `ON` if top-level | Build `examples/` (OpenGL, Vulkan, SDL3) |
 | `LAMBUI_BUILD_TESTS` | `ON` if top-level | Build the GoogleTest suite in `tests/` |
-| `LAMBUI_BUILD_LUA_BINDINGS` | `OFF` | Build `lua/` (sol2 + Lua, fetched on demand) |
+| `LAMBUI_BUILD_LUA_BINDINGS` | `OFF` | Build `lua/` (Lua C API; Lua fetched if not found) |
 | `LAMBUI_INSTALL` | `ON` if top-level | Generate install/export targets |
 | `LAMBUI_EXAMPLE_OPENGL` / `_OPENGL33` / `_VULKAN` / `_SDL3` | `ON` | Toggle individual examples (Vulkan auto-skips if the SDK isn't found) |
 
@@ -518,6 +543,12 @@ target_link_libraries(my_game PRIVATE LambUI::lambui)
 
 Or, after `cmake --install`, via `find_package(LambUI REQUIRED)` and linking
 `LambUI::lambui`.
+
+Installed-package consumers also need fmt and Boost's optional/algorithm CMake
+packages; the fetched dependencies install alongside the core. `UIStyle::fillColor`
+and `UIWidget::GetStyle()` now use `boost::optional` rather than `std::optional`.
+Assignment, boolean checks, dereferencing, `reset()` and `value_or()` retain their
+usual usage; use `boost::none` in place of `std::nullopt`.
 
 ## Examples
 
@@ -576,15 +607,18 @@ before the GLFW context is destroyed.
 
 ### Compound widget showcases
 
-The OpenGL 3.3 and SDL3 examples both use
+The legacy OpenGL, OpenGL 3.3, and SDL3 examples all use
 [WidgetShowcase.h](examples/common/WidgetShowcase.h), an example-only,
-backend-independent gallery of the available controls and containers. The GL demo keeps
+backend-independent gallery of the available controls and containers. The GL33 demo keeps
 its animated contour canvas and distortion controls, with an asset inspector
-overlaid on the right. SDL3 presents a resizable asset browser. The legacy GL
-and Vulkan examples remain unchanged.
+overlaid on the right. Legacy GL and SDL3 present a resizable asset browser.
+Legacy GL draws its material preview with fixed-function quads and line strips;
+it needs no shader loader and retains its alpha-tested SDF text approximation.
+Vulkan remains a separate swapchain-only example.
 
 ```powershell
-cmake --build build --target lambui_example_opengl33 lambui_example_sdl3
+cmake --build build --target lambui_example_opengl lambui_example_opengl33 lambui_example_sdl3
+.\build\examples\opengl_glfw\lambui_example_opengl.exe
 .\build\examples\opengl33_glfw\lambui_example_opengl33.exe
 .\build\examples\sdl3\lambui_example_sdl3.exe
 ```
@@ -605,9 +639,9 @@ cmake --build build --target lambui_example_opengl33 lambui_example_sdl3
 - **Tooltips:** hover over the tree or build pause button. GL's animation
   pause button and distortion slider also have tooltips.
 
-Both demos use a 20px body font to fit fixed-height widget rows and a separate
+All three demos use a 20px body font to fit fixed-height widget rows and a separate
 26px heading font. They discover a system serif face for headings, falling
-back to the body face at 26px when none is available. SDL3 supports the same
+back to the body face at 26px when none is available. Legacy GL and SDL3 support the same
 `--font path` and `--heading-font path` overrides and system-font discovery
 as GL, with native font-selection pixel checks. Its resources are released before the SDL renderer and
 window are destroyed. Platform input and frame timing stay in each backend;
@@ -616,6 +650,7 @@ the shared composition uses only LambUI APIs.
 Run bounded native checks and capture all views:
 
 ```powershell
+.\build\examples\opengl_glfw\lambui_example_opengl.exe --smoke-test --screenshot build/widgets-legacy
 .\build\examples\opengl33_glfw\lambui_example_opengl33.exe --smoke-test --screenshot build/widgets-gl
 .\build\examples\sdl3\lambui_example_sdl3.exe --smoke-test --screenshot build/widgets-sdl
 ```
@@ -624,17 +659,20 @@ The shared smoke sequence injects tab/button clicks, tree selection and
 expansion, wheel scrolling, context-menu actions, and Escape dismissal. It also
 checks checkbox keyboard activation, radio exclusivity, text entry, dropdown
 selection, window policies, drag/resize, title buttons, and close/reopen.
-GL additionally verifies its renderer and animated shader pixels; SDL checks
-for nonblank rendering and changed pixels across captured views.
+GL33 additionally verifies its renderer and animated shader pixels. Legacy GL
+checks scaled/nested/empty scissors, font selection/fallback, nonblank rendering,
+and changed pixels across views. SDL also checks nonblank rendering and changed
+pixels. Legacy GL keeps input/layout in window coordinates and converts scissors
+to framebuffer pixels, including on high-DPI displays.
 The screenshot prefix produces desktop/compact assets, menu, job, tooltip,
 controls, inputs, canvas, window settings, normal/minimized/maximized window
-captures (`.ppm` for GL, `.bmp` for SDL). GL runs at 1100x720 and 420x720;
-SDL at 920x680 and 420x680. These tests require a native desktop renderer
+captures (`.ppm` for GL, `.bmp` for SDL). GL33 runs at 1100x720 and 420x720;
+legacy GL and SDL at 920x680 and 420x680. These tests require a native desktop renderer
 and remain separate from headless CTest.
 
 ## Lua bindings
 
-`lua/` builds `lambui_lua`, a small sol2-based binding layer exposing a
+`lua/` builds `lambui_lua` (`LambUI::lua`), a manual Lua C API binding layer exposing a
 WoW-like scripting surface:
 
 ```lua
@@ -652,4 +690,44 @@ end)
 ```
 
 Enable it with `-DLAMBUI_BUILD_LUA_BINDINGS=ON`. It is off by default so that
-consumers who only want the core C++ library don't pay for fetching Lua/sol2.
+consumers who only want the core C++ library don't pay for fetching Lua.
+
+Link the companion target with `target_link_libraries(my_game PRIVATE LambUI::lua)`
+when consuming the source project. The host-facing API now accepts `lua_State*`:
+
+```cpp
+#include <LambUILua/LuaBindings.h>
+#include <memory>
+#include <stdexcept>
+extern "C" {
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+}
+
+void RunUI(LambUI::UIManager& manager) {
+  std::unique_ptr<lua_State, decltype(&lua_close)> lua(luaL_newstate(), lua_close);
+  if (!lua) throw std::runtime_error("Could not create Lua state");
+  luaL_openlibs(lua.get());
+  LambUILua::LuaUIBindings bindings(lua.get(), manager);
+  if (luaL_dostring(lua.get(), "UI.CreateFrame('Frame', 'Panel')") != LUA_OK)
+    throw std::runtime_error(lua_tostring(lua.get(), -1));
+  // Run the host's UI loop here while bindings, Lua and manager are alive.
+}
+```
+
+The binding borrows the main Lua state and manager; **destroy the binding before
+either one**, and use them on the same thread. Lua userdata do not own widgets.
+Destroying the binding releases Lua registry references and disables its retained
+callbacks; old userdata/factory calls then raise Lua errors rather than accessing
+the manager. One binding per Lua state is supported. Coroutine scripts may call
+the API, but event callbacks run as non-yielding protected calls on the main state.
+Callback failures are reported through `UILog` and leave the Lua stack balanced.
+`SetScript(name, nil)` clears a button script.
+
+The existing Frame/Button/StatusBar/EditBox factory and Texture/FontString methods
+remain available. Widget-specific methods reject incompatible widget types;
+automatic sol2 type-registration globals are no longer provided. Full binding
+coverage of newer widgets remains separate work. Gameplay event payloads retain
+the previous pointer-as-integer convention; the binding does not dereference or
+marshal arbitrary C++ payload objects. Texture handles likewise use integer IDs.

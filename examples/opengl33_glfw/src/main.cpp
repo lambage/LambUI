@@ -12,7 +12,6 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -101,6 +100,140 @@ bool SaveScreenshot(const std::string& path, int width, int height) {
         }
     }
     return static_cast<bool>(output);
+}
+
+bool CheckTextCoverage(GL33ExampleRenderer& renderer) {
+    LAMBUI_LOGT(TAG, "CheckTextCoverage");
+    constexpr int width = 384, height = 96, referenceScale = 4;
+    GLuint framebuffer = 0, texture = 0;
+    glGenFramebuffers(1, &framebuffer);
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width * referenceScale, height * referenceScale,
+                 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    bool passed = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    if (passed) {
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        UIRenderCommand text;
+        text.type = RenderCommandType::DrawString;
+        text.text = "Materials / SDF 0123";
+        std::vector<unsigned char> pixels(width * height * 4);
+        std::vector<unsigned char> reference(width * height * referenceScale * referenceScale * 4);
+        text.text = "i";
+        double minimumInk = 1.0e30, maximumInk = 0.0;
+        std::array<double, 8> phaseInk{};
+        bool translationPassed = true;
+        for (int phase = 0; phase < 16; ++phase) {
+            text.x = 8.0f + phase / 8.0f;
+            text.y = 8.0f;
+            renderer.SetViewportSize(width, height, width, height);
+            glClear(GL_COLOR_BUFFER_BIT);
+            renderer.SubmitRenderCommands({text});
+            glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+            double ink = 0.0;
+            int peak = 0;
+            for (size_t pixel = 0; pixel < pixels.size(); pixel += 4) {
+                ink += pixels[pixel] / 255.0;
+                peak = std::max(peak, static_cast<int>(pixels[pixel]));
+            }
+            minimumInk = std::min(minimumInk, ink);
+            maximumInk = std::max(maximumInk, ink);
+            if (phase < 8) phaseInk[phase] = ink;
+            else translationPassed = std::abs(ink - phaseInk[phase - 8]) < 0.02 * ink && translationPassed;
+            LAMBUI_LOGI(TAG, "Thin glyph i phase={}: ink={:.3f}, peak={}", phase, ink, peak);
+        }
+        const bool thinPassed = maximumInk > 0.0 && minimumInk / maximumInk > 0.85;
+        LAMBUI_LOGI(TAG, "Thin glyph phase stability: {} (ratio={:.3f})",
+                    thinPassed ? "PASS" : "FAIL", maximumInk > 0.0 ? minimumInk / maximumInk : 0.0);
+        LAMBUI_LOGI(TAG, "Thin glyph integer translation: {}", translationPassed ? "PASS" : "FAIL");
+        passed = thinPassed && translationPassed && passed;
+        for (const char* label : {"i", "Material / Contour"}) {
+            text.text = label;
+            for (const float scale : {1.0f, 1.25f, 1.5f, 2.0f}) {
+                const int logicalWidth = static_cast<int>(width / scale);
+                const int logicalHeight = static_cast<int>(height / scale);
+                const float pixelWidth = static_cast<float>(logicalWidth) / width;
+                const float pixelHeight = static_cast<float>(logicalHeight) / height;
+                renderer.SetViewportSize(logicalWidth, logicalHeight, width, height);
+                double worstError = 0.0;
+                for (const float phase : {0.0f, 0.25f, 0.5f, 0.75f}) {
+                    text.x = (8.0f + phase) * pixelWidth;
+                    text.y = (8.0f + phase) * pixelHeight;
+                    glClear(GL_COLOR_BUFFER_BIT);
+                    renderer.SubmitRenderCommands({text});
+                    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+                    for (int shift = 1; shift <= 3; ++shift) {
+                        const int shiftX = shift & 1;
+                        const int shiftY = (shift >> 1) & 1;
+                        text.x = (8.0f + phase + shiftX) * pixelWidth;
+                        text.y = (8.0f + phase + shiftY) * pixelHeight;
+                        glClear(GL_COLOR_BUFFER_BIT);
+                        renderer.SubmitRenderCommands({text});
+                        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, reference.data());
+                        double difference = 0.0, ink = 0.0;
+                        for (int row = 1; row < height; ++row) {
+                            for (int column = 0; column < width - 1; ++column) {
+                                const auto original = pixels[(row * width + column) * 4];
+                                const auto moved = reference[((row - shiftY) * width + column + shiftX) * 4];
+                                ink += original;
+                                difference += std::abs(static_cast<int>(original) - moved);
+                            }
+                        }
+                        worstError = std::max(worstError, ink > 0.0 ? difference / ink : 1.0);
+                    }
+                }
+                const bool movementPassed = worstError < 0.02;
+                passed = movementPassed && passed;
+                LAMBUI_LOGI(TAG, "Text translation '{}' scale={}: {} (worst error={:.4f})",
+                            label, scale, movementPassed ? "PASS" : "FAIL", worstError);
+            }
+        }
+        text.text = "Materials / SDF 0123";
+        for (const float scale : {1.0f, 1.25f, 1.5f, 2.0f}) {
+            for (const float offset : {0.0f, 0.25f, 0.5f, 0.75f}) {
+                text.x = text.y = 8.0f + offset;
+                renderer.SetViewportSize(static_cast<int>(width / scale), static_cast<int>(height / scale), width, height);
+                glClear(GL_COLOR_BUFFER_BIT);
+                renderer.SubmitRenderCommands({text});
+                glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+                renderer.SetViewportSize(static_cast<int>(width / scale), static_cast<int>(height / scale),
+                                         width * referenceScale, height * referenceScale);
+                glClear(GL_COLOR_BUFFER_BIT);
+                renderer.SubmitRenderCommands({text});
+                glReadPixels(0, 0, width * referenceScale, height * referenceScale,
+                             GL_RGBA, GL_UNSIGNED_BYTE, reference.data());
+                double difference = 0.0, referenceInk = 0.0;
+                for (int row = 0; row < height; ++row) {
+                    for (int column = 0; column < width; ++column) {
+                        double coverage = 0.0;
+                        for (int sampleY = 0; sampleY < referenceScale; ++sampleY) {
+                            for (int sampleX = 0; sampleX < referenceScale; ++sampleX) {
+                                const auto sample = ((row * referenceScale + sampleY) * width * referenceScale
+                                                   + column * referenceScale + sampleX) * 4;
+                                coverage += reference[sample];
+                            }
+                        }
+                        coverage /= referenceScale * referenceScale;
+                        referenceInk += coverage;
+                        difference += std::abs(pixels[(row * width + column) * 4] - coverage);
+                    }
+                }
+                const double error = referenceInk > 0.0 ? difference / referenceInk : 1.0;
+                const bool coveragePassed = error < 0.15;
+                passed = coveragePassed && passed;
+                LAMBUI_LOGI(TAG, "Text coverage scale={} offset={}: {} (relative error={:.3f})",
+                            scale, offset, coveragePassed ? "PASS" : "FAIL", error);
+            }
+        }
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &framebuffer);
+    glDeleteTextures(1, &texture);
+    return glGetError() == GL_NO_ERROR && passed;
 }
 
 bool CheckRenderer(GL33ExampleRenderer& renderer, int width, int height, void* headingFont) {
@@ -215,6 +348,8 @@ bool CheckRenderer(GL33ExampleRenderer& renderer, int width, int height, void* h
                              defaultPixels == ReadPixels(width, height);
     LAMBUI_LOGI(TAG, "Multiple-font pixels and fallback: {}", fontsPassed ? "PASS" : "FAIL");
     passed = fontsPassed && glGetError() == GL_NO_ERROR && passed;
+    passed = CheckTextCoverage(renderer) && passed;
+    renderer.SetViewportSize(width, height, width, height);
     return passed;
 }
 
@@ -316,6 +451,10 @@ int RunExample(GLFWwindow* window, const std::string& fontPath, const std::strin
         if (smoke) passed = CheckRenderer(*renderer, framebufferWidth, framebufferHeight, &headingAtlas) && passed;
         renderer->SetViewportSize(width, height, framebufferWidth, framebufferHeight);
         if (width != previousWidth || height != previousHeight) {
+            float contentScaleX = 1.0f, contentScaleY = 1.0f;
+            glfwGetWindowContentScale(window, &contentScaleX, &contentScaleY);
+            LAMBUI_LOGI(TAG, "Display: window={}x{}, framebuffer={}x{}, content scale={}x{}",
+                        width, height, framebufferWidth, framebufferHeight, contentScaleX, contentScaleY);
             manager.SetDisplaySize(static_cast<float>(width), static_cast<float>(height));
             const float panelWidth = width < 700 ? static_cast<float>(width) - 32.0f : 320.0f;
             widgets.Layout(static_cast<float>(width) - panelWidth - 16.0f, 124.0f,
@@ -381,7 +520,8 @@ int RunExample(GLFWwindow* window, const std::string& fontPath, const std::strin
             }
             screenshotSaved = true;
         }
-        if (const GLenum error = glGetError(); error != GL_NO_ERROR) {
+        const GLenum error = glGetError();
+        if (error != GL_NO_ERROR) {
             LAMBUI_LOGE(TAG, "OpenGL error: {}", error);
             passed = false;
             break;
@@ -417,7 +557,7 @@ int main(int argc, char** argv) {
         for (const char* candidate : {"C:/Windows/Fonts/segoeui.ttf",
                                      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                                      "/System/Library/Fonts/Supplemental/Arial.ttf"}) {
-            if (std::filesystem::exists(candidate)) {
+            if (std::ifstream(candidate).good()) {
                 fontPath = candidate;
                 break;
             }
@@ -428,7 +568,7 @@ int main(int argc, char** argv) {
         for (const char* candidate : {"C:/Windows/Fonts/georgia.ttf",
                                      "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
                                      "/System/Library/Fonts/Supplemental/Georgia.ttf"}) {
-            if (std::filesystem::exists(candidate)) {
+            if (std::ifstream(candidate).good()) {
                 headingFontPath = candidate;
                 break;
             }

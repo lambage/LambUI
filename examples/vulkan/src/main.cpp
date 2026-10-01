@@ -154,8 +154,8 @@ int main() {
         if (extent.width == UINT32_MAX) {
             int width = 0, height = 0;
             glfwGetFramebufferSize(window, &width, &height);
-            extent.width = std::clamp(static_cast<uint32_t>(width), capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-            extent.height = std::clamp(static_cast<uint32_t>(height), capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+            extent.width = boost::algorithm::clamp(static_cast<uint32_t>(width), capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+            extent.height = boost::algorithm::clamp(static_cast<uint32_t>(height), capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
         }
 
         uint32_t imageCount = capabilities.minImageCount + 1;

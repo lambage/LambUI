@@ -63,13 +63,13 @@ void UIManager::SetDisplaySize(float width, float height) {
 
 void UIManager::PlaceOverlay(UIWidget& widget, float x, float y, float requestedWidth, float requestedHeight) {
     LAMBUI_LOGT(TAG, "PlaceOverlay('{}', {}, {})", widget.GetName(), x, y);
-    const float width = std::clamp(requestedWidth, 0.0f, std::max(0.0f, m_displayWidth));
-    const float height = std::clamp(requestedHeight, 0.0f, std::max(0.0f, m_displayHeight));
+    const float width = boost::algorithm::clamp(requestedWidth, 0.0f, std::max(0.0f, m_displayWidth));
+    const float height = boost::algorithm::clamp(requestedHeight, 0.0f, std::max(0.0f, m_displayHeight));
     widget.SetSize(width, height);
     widget.ClearPoints();
     widget.SetPoint(AnchorPoint::TopLeft, m_overlayRoot.get(), AnchorPoint::TopLeft,
-                   std::clamp(x, 0.0f, std::max(0.0f, m_displayWidth - width)),
-                   std::clamp(y, 0.0f, std::max(0.0f, m_displayHeight - height)));
+                   boost::algorithm::clamp(x, 0.0f, std::max(0.0f, m_displayWidth - width)),
+                   boost::algorithm::clamp(y, 0.0f, std::max(0.0f, m_displayHeight - height)));
     widget.ResolveLayout();
 }
 
@@ -95,12 +95,84 @@ void UIManager::ShowPopup(UIWidget& popup, float x, float y, UIWidget* owner, bo
 void UIManager::ClosePopup() {
     LAMBUI_LOGT(TAG, "ClosePopup");
     if (!m_activePopup) return;
+    CloseSubmenus(*m_activePopup);
     m_activePopup->SetVisible(false);
     m_activePopup->SetSize(m_popupWidth, m_popupHeight);
     m_activePopup = nullptr;
     m_popupOwner = nullptr;
     SetFocusedWidget(CanFocusWidget(m_popupPreviousFocus) ? m_popupPreviousFocus : nullptr);
     m_popupPreviousFocus = nullptr;
+}
+
+bool UIManager::IsPopupOpen(const UIWidget* popup) const {
+    if (m_activePopup == popup) return true;
+    return std::any_of(m_submenus.begin(), m_submenus.end(),
+        [popup](const Submenu& submenu) { return submenu.widget == popup; });
+}
+
+UIWidget* UIManager::PopupScope() const {
+    for (const auto& submenu : m_submenus)
+        if (IsWithin(m_focusedWidget, submenu.widget)) return submenu.widget;
+    if (IsWithin(m_focusedWidget, m_activePopup)) return m_activePopup;
+    return m_submenus.empty() ? m_activePopup : m_submenus.back().widget;
+}
+
+void UIManager::ShowSubmenu(UIWidget& popup, UIWidget& parent, UIWidget& owner, bool focus) {
+    LAMBUI_LOGT(TAG, "ShowSubmenu('{}', parent='{}', focus={})", popup.GetName(), parent.GetName(), focus);
+    if (!IsPopupOpen(&parent) || popup.GetParent() != m_overlayRoot.get()) return;
+    if (!IsPopupOpen(&popup)) {
+        CloseSubmenus(parent);
+        m_submenus.push_back({&popup, &parent, &owner, popup.m_width, popup.m_height});
+        popup.SetVisible(true);
+        PlaceSubmenu(m_submenus.back());
+    }
+    if (focus) {
+        CloseSubmenus(popup);
+        SetFocusedWidget(nullptr);
+        MoveFocus(false);
+    }
+}
+
+void UIManager::CloseSubmenus(UIWidget& parent, bool restoreFocus) {
+    LAMBUI_LOGT(TAG, "CloseSubmenus('{}', restoreFocus={})", parent.GetName(), restoreFocus);
+    auto first = std::find_if(m_submenus.begin(), m_submenus.end(),
+        [&parent](const Submenu& submenu) { return submenu.parent == &parent; });
+    if (first == m_submenus.end()) return;
+    auto* owner = first->owner;
+    bool focusClosed = false;
+    for (auto current = first; current != m_submenus.end(); ++current) {
+        focusClosed = focusClosed || IsWithin(m_focusedWidget, current->widget);
+        current->widget->SetVisible(false);
+        current->widget->SetSize(current->width, current->height);
+    }
+    m_submenus.erase(first, m_submenus.end());
+    if (focusClosed) SetFocusedWidget(restoreFocus && CanFocusWidget(owner) ? owner : nullptr);
+}
+
+void UIManager::PlaceSubmenu(const Submenu& submenu) {
+    LAMBUI_LOGT(TAG, "PlaceSubmenu('{}')", submenu.widget->GetName());
+    const auto& parent = submenu.parent->GetComputedRect();
+    const auto& owner = submenu.owner->GetComputedRect();
+    const float width = std::min(submenu.width, std::max(0.0f, m_displayWidth));
+    bool preferLeft = false;
+    for (const auto& ancestor : m_submenus) {
+        if (ancestor.widget == submenu.parent) {
+            preferLeft = parent.x < ancestor.parent->GetComputedRect().x;
+            break;
+        }
+    }
+    const float right = parent.x + parent.width;
+    const float left = parent.x - width;
+    float x = preferLeft ? left : right;
+    if (preferLeft && left < 0.0f) x = right;
+    if (!preferLeft && right + width > m_displayWidth) x = left;
+    PlaceOverlay(*submenu.widget, x, owner.y, submenu.width, submenu.height);
+}
+
+UIWidget* UIManager::HitTestPopups(float x, float y) const {
+    for (auto current = m_submenus.rbegin(); current != m_submenus.rend(); ++current)
+        if (auto* hit = HitTestRecursive(*current->widget, x, y)) return hit;
+    return m_activePopup ? HitTestRecursive(*m_activePopup, x, y) : nullptr;
 }
 
 void UIManager::SetTooltipDelay(float seconds) {
@@ -127,7 +199,7 @@ void UIManager::UpdateTooltip(float deltaTime) {
     if (target != m_tooltipTarget || (target && target->GetTooltip() != m_tooltip->GetText())) {
         ResetTooltip();
         m_tooltipTarget = target;
-        if (target) m_tooltip->SetText(target->GetTooltip(), m_textMeasurer.get());
+        if (target) m_tooltip->SetText(target->GetTooltip(), m_textMeasurer.get(), std::min(320.0f, m_displayWidth));
     }
     if (!target) return;
     if (std::isfinite(deltaTime) && deltaTime > 0.0f) m_tooltipElapsed += deltaTime;
@@ -139,9 +211,7 @@ void UIManager::UpdateTooltip(float deltaTime) {
 }
 
 UIWidget* UIManager::HitTestInput(float x, float y) const {
-    if (m_activePopup) {
-        if (auto* hit = HitTestRecursive(*m_activePopup, x, y)) return hit;
-    }
+    if (auto* hit = HitTestPopups(x, y)) return hit;
     return HitTestRecursive(*m_root, x, y);
 }
 
@@ -175,6 +245,12 @@ void UIManager::UpdateHover(float x, float y) {
             target->FireEvent(UIEventData{UIEventType::OnMouseEnter, x, y});
         }
         m_hoveredWidget = target;
+        for (auto* ancestor = target; ancestor; ancestor = ancestor->GetParent()) {
+            if (auto* menu = dynamic_cast<UIContextMenu*>(ancestor)) {
+                if (menu->IsOpen() && IsWithin(target, menu->GetContent())) menu->HoverRow(x, y);
+                break;
+            }
+        }
     }
 }
 
@@ -202,7 +278,7 @@ void UIManager::InjectMouseButton(MouseButton button, bool isDown) {
     LAMBUI_LOGT(TAG, "InjectMouseButton({}, isDown={})", ToString(button), isDown);
     if (m_pressedWidget && button != m_pressedButton) return;
     ResetTooltip();
-    if (isDown && m_activePopup && !HitTestRecursive(*m_activePopup, m_mouseX, m_mouseY)) {
+    if (isDown && m_activePopup && !HitTestPopups(m_mouseX, m_mouseY)) {
         bool ownerHit = false;
         for (auto* hit = HitTestRecursive(*m_root, m_mouseX, m_mouseY); hit; hit = hit->GetParent()) {
             if (hit == m_popupOwner && m_popupAllowsOwnerInput) ownerHit = true;
@@ -248,7 +324,7 @@ void UIManager::InjectMouseButton(MouseButton button, bool isDown) {
 void UIManager::InjectMouseWheel(float xOffset, float yOffset) {
     LAMBUI_LOGT(TAG, "InjectMouseWheel({}, {})", xOffset, yOffset);
     ResetTooltip();
-    UIWidget* target = m_activePopup ? HitTestRecursive(*m_activePopup, m_mouseX, m_mouseY) : HitTestInput(m_mouseX, m_mouseY);
+    UIWidget* target = m_activePopup ? HitTestPopups(m_mouseX, m_mouseY) : HitTestInput(m_mouseX, m_mouseY);
     for (UIWidget* w = target; w; w = w->GetParent()) {
         if (auto* scrollable = dynamic_cast<IScrollable*>(w)) {
             scrollable->OnScroll(xOffset, yOffset);
@@ -262,7 +338,9 @@ void UIManager::SetFocusedWidget(UIWidget* widget) {
     LAMBUI_LOGT(TAG, "focus '{}' -> '{}'", m_focusedWidget ? m_focusedWidget->GetName() : "<none>",
                 widget ? widget->GetName() : "<none>");
     if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) focusable->OnFocusLost();
+    if (m_focusedWidget) m_focusedWidget->m_hasManagerFocus = false;
     m_focusedWidget = widget;
+    if (m_focusedWidget) m_focusedWidget->m_hasManagerFocus = true;
     if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) focusable->OnFocusGained();
     if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget)) {
         input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
@@ -289,8 +367,9 @@ void UIManager::CollectFocusTargets(UIWidget& widget, std::vector<UIWidget*>& ta
 
 void UIManager::MoveFocus(bool backwards) {
     LAMBUI_LOGT(TAG, "MoveFocus(backwards={})", backwards);
+    if (auto* scope = PopupScope()) CloseSubmenus(*scope);
     std::vector<UIWidget*> targets;
-    CollectFocusTargets(m_activePopup ? *m_activePopup : *m_root, targets);
+    CollectFocusTargets(m_activePopup ? *PopupScope() : *m_root, targets);
     if (targets.empty()) {
         SetFocusedWidget(nullptr);
         return;
@@ -329,7 +408,16 @@ void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
             if (isDown) ClosePopup();
             return;
         }
-        if (dynamic_cast<UIContextMenu*>(m_activePopup)) {
+        if (auto* menu = dynamic_cast<UIContextMenu*>(PopupScope())) {
+            if (scanCode == ScanCode::Right && isDown && menu->OpenFocusedSubmenu()) return;
+            if (scanCode == ScanCode::Left && menu != m_activePopup) {
+                if (isDown) {
+                    const auto current = std::find_if(m_submenus.begin(), m_submenus.end(),
+                        [menu](const Submenu& submenu) { return submenu.widget == menu; });
+                    if (current != m_submenus.end()) CloseSubmenus(*current->parent);
+                }
+                return;
+            }
             if (scanCode == ScanCode::Up || scanCode == ScanCode::Down || scanCode == ScanCode::Home || scanCode == ScanCode::End) {
                 if (isDown) {
                     if (scanCode == ScanCode::Home || scanCode == ScanCode::End) SetFocusedWidget(nullptr);
@@ -337,18 +425,19 @@ void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
                 }
                 return;
             }
-            if (m_popupAllowsOwnerInput && (scanCode == ScanCode::Left || scanCode == ScanCode::Right)) {
+            if (menu == m_activePopup && m_popupAllowsOwnerInput && (scanCode == ScanCode::Left || scanCode == ScanCode::Right)) {
                 if (auto* owner = dynamic_cast<IFocusable*>(m_popupOwner)) owner->OnKeyEvent(scanCode, isDown);
                 return;
             }
         }
-        if (!IsWithin(m_focusedWidget, m_activePopup)) return;
+        if (!IsWithin(m_focusedWidget, PopupScope())) return;
     }
     if (!IsEffectivelyVisible(m_focusedWidget)) return;
     if (isDown) {
         if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) {
-            if (auto* neighbor = focusable->GetFocusNeighbor(scanCode); CanFocusWidget(neighbor) &&
-                IsWithin(neighbor, m_activePopup ? m_activePopup : m_root.get())) SetFocusedWidget(neighbor);
+            auto* neighbor = focusable->GetFocusNeighbor(scanCode);
+            if (CanFocusWidget(neighbor) &&
+                IsWithin(neighbor, m_activePopup ? PopupScope() : m_root.get())) SetFocusedWidget(neighbor);
         }
     }
     if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) {
@@ -360,7 +449,7 @@ void UIManager::InjectCharacter(char32_t codepoint) {
     LAMBUI_LOGT(TAG, "InjectCharacter(U+{:04X})", static_cast<uint32_t>(codepoint));
     ResetTooltip();
     if (!CanFocusWidget(m_focusedWidget)) SetFocusedWidget(nullptr);
-    if ((m_activePopup && !IsWithin(m_focusedWidget, m_activePopup)) || !m_focusedWidget) return;
+    if ((m_activePopup && !IsWithin(m_focusedWidget, PopupScope())) || !m_focusedWidget) return;
     if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) {
         focusable->OnCharacter(codepoint);
     }
@@ -374,6 +463,17 @@ void UIManager::Update(float deltaTime) {
     m_overlayRoot->ResolveLayout();
     if (m_activePopup) {
         PlaceOverlay(*m_activePopup, m_popupX, m_popupY, m_popupWidth, m_popupHeight);
+        for (size_t index = 0; index < m_submenus.size(); ++index) {
+            const auto submenu = m_submenus[index];
+            const auto& owner = submenu.owner->GetComputedRect();
+            const auto clip = submenu.parent->GetChildClipRect();
+            if (!submenu.widget->IsVisible() || !IsEffectivelyVisible(submenu.owner) ||
+                owner.y + owner.height <= clip.y || owner.y >= clip.y + clip.height) {
+                CloseSubmenus(*submenu.parent, false);
+                break;
+            }
+            PlaceSubmenu(submenu);
+        }
     }
     if (!m_pressedWidget) UpdateHover(m_mouseX, m_mouseY);
     UpdateTooltip(deltaTime);
@@ -387,10 +487,12 @@ void UIManager::Update(float deltaTime) {
 
 void UIManager::Render() {
     LAMBUI_LOGT(TAG, "Render");
+    if (!CanFocusWidget(m_focusedWidget)) SetFocusedWidget(nullptr);
     m_commandBucket.clear();
-    m_root->GenerateRenderCommands(m_commandBucket);
-    if (m_activePopup) m_activePopup->GenerateRenderCommands(m_commandBucket);
-    m_tooltip->GenerateRenderCommands(m_commandBucket);
+    m_root->GenerateRenderCommandsWithFocus(m_commandBucket);
+    if (m_activePopup) m_activePopup->GenerateRenderCommandsWithFocus(m_commandBucket);
+    for (const auto& submenu : m_submenus) submenu.widget->GenerateRenderCommandsWithFocus(m_commandBucket);
+    m_tooltip->GenerateRenderCommandsWithFocus(m_commandBucket);
     if (m_renderer) {
         m_renderer->SubmitRenderCommands(m_commandBucket);
     }

@@ -2,6 +2,7 @@
 #include "LambUI/UILog.h"
 #include <algorithm>
 #include <array>
+#include <cmath>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -40,9 +41,16 @@ GLExampleRenderer::~GLExampleRenderer() {
     for (const auto& entry : m_fonts) glDeleteTextures(1, &entry.second.second);
 }
 
-void GLExampleRenderer::SetViewportSize(int width, int height) {
+void GLExampleRenderer::SetViewportSize(int width, int height, int framebufferWidth, int framebufferHeight) {
+    if (framebufferWidth < 0) framebufferWidth = width;
+    if (framebufferHeight < 0) framebufferHeight = height;
+    if (width == m_viewportWidth && height == m_viewportHeight &&
+        framebufferWidth == m_framebufferWidth && framebufferHeight == m_framebufferHeight) return;
+    LAMBUI_LOGT(TAG, "SetViewportSize({}, {}, {}, {})", width, height, framebufferWidth, framebufferHeight);
     m_viewportWidth = width;
     m_viewportHeight = height;
+    m_framebufferWidth = framebufferWidth;
+    m_framebufferHeight = framebufferHeight;
 }
 
 bool GLExampleRenderer::LoadFont(const FontAtlas& atlas, void* fontHandle) {
@@ -72,7 +80,8 @@ void GLExampleRenderer::DrawString(const UIRenderCommand& cmd) {
     auto found = m_fonts.find(cmd.fontHandle);
     if (found == m_fonts.end()) found = m_fonts.find(nullptr);
     if (found == m_fonts.end()) return;
-    const auto& [atlas, texture] = found->second;
+    const auto* atlas = found->second.first;
+    const auto texture = found->second.second;
 
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_ALPHA_TEST);
@@ -107,6 +116,10 @@ void GLExampleRenderer::DrawString(const UIRenderCommand& cmd) {
 
 void GLExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>& commands) {
     LAMBUI_LOGT(TAG, "SubmitRenderCommands({})", commands.size());
+    if (m_viewportWidth <= 0 || m_viewportHeight <= 0 || m_framebufferWidth <= 0 || m_framebufferHeight <= 0) return;
+    glViewport(0, 0, m_framebufferWidth, m_framebufferHeight);
+    const float scaleX = static_cast<float>(m_framebufferWidth) / m_viewportWidth;
+    const float scaleY = static_cast<float>(m_framebufferHeight) / m_viewportHeight;
     std::vector<std::array<GLint, 4>> clips;
     glDisable(GL_SCISSOR_TEST);
     glMatrixMode(GL_PROJECTION);
@@ -131,17 +144,18 @@ void GLExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>&
                 break;
 
             case RenderCommandType::PushScissor: {
-                GLint left = static_cast<GLint>(cmd.x);
-                GLint bottom = m_viewportHeight - static_cast<GLint>(cmd.y + cmd.height);
-                GLint right = left + (std::max)(0, static_cast<GLint>(cmd.width));
-                GLint top = bottom + (std::max)(0, static_cast<GLint>(cmd.height));
-                if (!clips.empty()) {
-                    const auto& parent = clips.back();
-                    left = (std::max)(left, parent[0]);
-                    bottom = (std::max)(bottom, parent[1]);
-                    right = (std::min)(right, parent[0] + parent[2]);
-                    top = (std::min)(top, parent[1] + parent[3]);
-                }
+                GLint left = static_cast<GLint>(std::floor(cmd.x * scaleX));
+                GLint bottom = m_framebufferHeight - static_cast<GLint>(std::ceil((cmd.y + cmd.height) * scaleY));
+                GLint right = static_cast<GLint>(std::ceil((cmd.x + cmd.width) * scaleX));
+                GLint top = m_framebufferHeight - static_cast<GLint>(std::floor(cmd.y * scaleY));
+                const auto parent = clips.empty()
+                    ? std::array<GLint, 4>{0, 0, m_framebufferWidth, m_framebufferHeight} : clips.back();
+                left = (std::max)(left, parent[0]);
+                bottom = (std::max)(bottom, parent[1]);
+                right = (std::min)(right, parent[0] + parent[2]);
+                top = (std::min)(top, parent[1] + parent[3]);
+                if (cmd.width <= 0.0f) right = left;
+                if (cmd.height <= 0.0f) top = bottom;
                 clips.push_back({left, bottom, (std::max)(0, right - left), (std::max)(0, top - bottom)});
                 glEnable(GL_SCISSOR_TEST);
                 const auto& clip = clips.back();

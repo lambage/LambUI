@@ -27,9 +27,13 @@ void UIControl::OnKeyEvent(uint32_t scanCode, bool isDown) {
     LAMBUI_LOGT(TAG, "'{}' OnKeyEvent({}, {})", GetName(), scanCode, isDown);
     if (!m_keyboardFocused || !CanFocus() || (scanCode != ScanCode::Enter && scanCode != ScanCode::Space)) return;
     if (isDown) {
-        if (!m_activationKey) m_activationKey = scanCode;
+        if (!m_activationKey) {
+            m_activationKey = scanCode;
+            MarkDirty();
+        }
     } else if (m_activationKey == scanCode) {
         m_activationKey = 0;
+        MarkDirty();
         FireEvent(UIEventData{UIEventType::OnClick});
     }
 }

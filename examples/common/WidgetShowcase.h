@@ -35,7 +35,7 @@ public:
         auto* job = m_tabs->AddTab("Build");
         m_tree = assets->CreateChild<UITreeView>("AssetTree");
         m_tree->SetAllPoints(assets);
-        m_tree->SetTooltip("Project assets");
+        m_tree->SetTooltip("Project assets\nLocal workspace\n\nMeshes, textures, and materials");
         for (const auto& group : std::vector<std::vector<std::string>>{
                  {"Materials", "Contour", "Brushed metal", "Glass", "Stone"},
                  {"Textures", "Albedo", "Normal", "Roughness", "Emissive"},
@@ -125,7 +125,13 @@ public:
             {"", {}, true, true},
             {"Collapse folders", [this] { SetExpanded(false); }},
             {"Expand folders", [this] { SetExpanded(true); }},
-            {"Delete (read-only)", {}, false}});
+            {"Delete (read-only)", {}, false},
+            {"Folders", {}, true, false, {
+                {"Expand all", [this] { SetExpanded(true); }},
+                {"Collapse all", [this] { SetExpanded(false); }},
+                {"Selection", {}, true, false, {
+                    {"Build selected", [this] { Restart(); m_tabs->SetSelectedIndex(1); }},
+                    {"Open preview", [this] { OpenWindow(); }}}}}}});
         m_tree->RegisterCallback(UIEventType::OnClick, [this](const UIEventData& event) {
             LAMBUI_LOGT(TAG, "Asset click({})", ToString(event.button));
             if (event.button == MouseButton::Right) {
@@ -197,6 +203,16 @@ public:
         const auto popup = m_context->GetComputedRect();
         Click(popup.x + 20.0f, popup.y + 12.0f);
         passed &= !m_context->IsOpen() && m_tabs->GetSelectedIndex() == 1;
+        m_context->Open(tree.x, tree.y, m_panel);
+        m_manager.InjectKeyEvent(ScanCode::End, true);
+        auto* branch = m_manager.GetFocusedWidget();
+        m_manager.InjectKeyEvent(ScanCode::Right, true);
+        passed &= m_context->IsOpen() && m_manager.GetFocusedWidget() != branch;
+        m_manager.InjectKeyEvent(ScanCode::Down, true);
+        m_manager.InjectKeyEvent(ScanCode::Enter, true);
+        m_manager.InjectKeyEvent(ScanCode::Enter, false);
+        passed &= !m_context->IsOpen() && !m_tree->IsExpanded(m_folders.front());
+        SetExpanded(true);
         const auto menu = m_menuBar->GetComputedRect();
         Click(menu.x + 30.0f, menu.y + 12.0f);
         passed &= m_menuBar->GetMenu(0)->IsOpen();
@@ -238,10 +254,23 @@ public:
         Click(rect.x + rect.width - 24.0f, rect.y + rect.height - 24.0f, LambUI::MouseButton::Right);
         bool passed = m_context->IsOpen();
         passed = capture("menu") && passed;
+        m_manager.InjectKeyEvent(LambUI::ScanCode::End, true);
+        m_manager.InjectKeyEvent(LambUI::ScanCode::Right, true);
+        passed = capture("submenu") && passed;
+        m_manager.InjectKeyEvent(LambUI::ScanCode::End, true);
+        m_manager.InjectKeyEvent(LambUI::ScanCode::Right, true);
+        passed = capture("submenu-deep") && passed;
         m_manager.InjectKeyEvent(LambUI::ScanCode::Escape, true);
         m_tabs->SetSelectedIndex(1);
         m_manager.Update(0.0f);
         passed = capture("job") && passed;
+        ClickCenter(*m_reset);
+        m_manager.InjectMouseMove(0, 0);
+        m_manager.Update(0);
+        passed = capture("focus") && passed;
+        m_manager.InjectKeyEvent(LambUI::ScanCode::Enter, true);
+        passed = m_reset->IsKeyboardPressed() && capture("focus-pressed") && passed;
+        m_manager.InjectKeyEvent(LambUI::ScanCode::Enter, false);
         m_tabs->SetSelectedIndex(2);
         m_controls->SetScrollOffset(0, 0);
         m_manager.Update(0);

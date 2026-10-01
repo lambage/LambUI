@@ -322,7 +322,7 @@ void UIInputBox::PositionCursor(float mouseX, float mouseY, bool extend) {
     const auto view = TextLayout::BuildView(m_text, m_textMeasurer, m_fontHandle, GetContentRect(),
         m_multiline && m_wordWrap, m_cursor, m_cursorAtLineEnd, m_scrollX, m_scrollY, false);
     const float row = std::floor((mouseY - view.clip.y + view.scrollY) / view.layout.lineHeight);
-    const size_t index = static_cast<size_t>(std::clamp(row, 0.0f, static_cast<float>(view.layout.lines.size() - 1)));
+    const size_t index = static_cast<size_t>(boost::algorithm::clamp(row, 0.0f, static_cast<float>(view.layout.lines.size() - 1)));
     const auto& line = view.layout.lines[index];
     m_cursor = TextLayout::HitPosition(m_text, line, mouseX - view.clip.x + view.scrollX, m_textMeasurer, m_fontHandle);
     m_cursorAtLineEnd = m_cursor == line.end;

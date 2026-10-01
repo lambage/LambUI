@@ -41,7 +41,7 @@ bool SDLExampleRenderer::LoadFont(const FontAtlas& atlas, void* fontHandle) {
     std::vector<uint32_t> rgba(static_cast<size_t>(width) * static_cast<size_t>(height));
     for (size_t i = 0; i < rgba.size(); ++i) {
         const float d = static_cast<float>(sdfPixels[i]);
-        const float sharpened = std::clamp((d - onEdge) * kSharpness + 128.0f, 0.0f, 255.0f);
+        const float sharpened = boost::algorithm::clamp((d - onEdge) * kSharpness + 128.0f, 0.0f, 255.0f);
         const uint8_t a = static_cast<uint8_t>(sharpened);
         rgba[i] = 0x00FFFFFFu | (static_cast<uint32_t>(a) << 24); // white RGB, sharpened alpha
     }
@@ -64,7 +64,8 @@ void SDLExampleRenderer::DrawString(const UIRenderCommand& cmd) {
     auto found = m_fonts.find(cmd.fontHandle);
     if (found == m_fonts.end()) found = m_fonts.find(nullptr);
     if (found == m_fonts.end()) return;
-    const auto& [atlas, texture] = found->second;
+    const auto* atlas = found->second.first;
+    const auto texture = found->second.second;
 
     const Uint8 r = static_cast<Uint8>((cmd.color >> 24) & 0xFF);
     const Uint8 g = static_cast<Uint8>((cmd.color >> 16) & 0xFF);

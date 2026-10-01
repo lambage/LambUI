@@ -269,13 +269,13 @@ void UIWidget::ResolveLayout() {
                                             {previous.x, previous.y, width, height});
         const float maxWidth = std::max(m_minWidth, m_maxWidth);
         const float maxHeight = std::max(m_minHeight, m_maxHeight);
-        float resolvedWidth = std::clamp(m_computedRect.width, m_minWidth, maxWidth);
-        float resolvedHeight = std::clamp(m_computedRect.height, m_minHeight, maxHeight);
+        float resolvedWidth = boost::algorithm::clamp(m_computedRect.width, m_minWidth, maxWidth);
+        float resolvedHeight = boost::algorithm::clamp(m_computedRect.height, m_minHeight, maxHeight);
         if (m_aspectRatio > 0) {
             const float lower = std::max(m_minWidth, m_minHeight * m_aspectRatio);
             const float upper = std::min(maxWidth, maxHeight * m_aspectRatio);
             if (lower <= upper) {
-                resolvedWidth = std::clamp(std::min(resolvedWidth, resolvedHeight * m_aspectRatio), lower, upper);
+                resolvedWidth = boost::algorithm::clamp(std::min(resolvedWidth, resolvedHeight * m_aspectRatio), lower, upper);
                 resolvedHeight = resolvedWidth / m_aspectRatio;
             }
         }
@@ -306,6 +306,47 @@ void UIWidget::ResolveLayout() {
     }
 
     for (auto& child : m_children) child->ResolveLayout();
+}
+
+void UIWidget::SetFocusRingEnabled(bool enabled) {
+    LAMBUI_LOGT(TAG, "'{}' SetFocusRingEnabled({})", GetName(), enabled);
+    m_focusRingEnabled = enabled;
+    MarkDirty();
+}
+
+void UIWidget::SetFocusRingColor(uint32_t color) {
+    LAMBUI_LOGT(TAG, "'{}' SetFocusRingColor({})", GetName(), color);
+    m_focusRingColor = color;
+    MarkDirty();
+}
+
+void UIWidget::GenerateRenderCommandsWithFocus(std::vector<UIRenderCommand>& bucket) {
+    if (!m_isVisible) return;
+    GenerateRenderCommands(bucket);
+    if (!m_hasManagerFocus || !m_focusRingEnabled || !m_isKeyboardEnabled) return;
+    const auto& rect = m_computedRect;
+    if (rect.width <= 0 || rect.height <= 0) return;
+    for (int layer = 0; layer < 2; ++layer) {
+        const float inset = static_cast<float>(layer);
+        const float width = rect.width - 2 * inset;
+        const float height = rect.height - 2 * inset;
+        if (width <= 0 || height <= 0) break;
+        const float thickness = std::min(1.0f, std::min(width, height) * 0.5f);
+        const auto quad = [&](float x, float y, float quadWidth, float quadHeight) {
+            if (quadWidth <= 0 || quadHeight <= 0) return;
+            UIRenderCommand command;
+            command.x = x;
+            command.y = y;
+            command.width = quadWidth;
+            command.height = quadHeight;
+            command.color = layer == 0 ? 0x172127FFu : m_focusRingColor;
+            bucket.push_back(command);
+        };
+        quad(rect.x + inset, rect.y + inset, width, thickness);
+        quad(rect.x + inset, rect.y + inset + height - thickness, width, thickness);
+        quad(rect.x + inset, rect.y + inset + thickness, thickness, height - 2 * thickness);
+        quad(rect.x + inset + width - thickness, rect.y + inset + thickness, thickness, height - 2 * thickness);
+    }
 }
 
 void UIWidget::GenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
@@ -377,11 +418,11 @@ void UIWidget::GenerateOwnRenderCommands(std::vector<UIRenderCommand>& bucket, c
 }
 
 void UIWidget::GenerateChildRenderCommands(std::vector<UIRenderCommand>& bucket) {
-    for (auto& child : m_children) child->GenerateRenderCommands(bucket);
+    for (auto& child : m_children) child->GenerateRenderCommandsWithFocus(bucket);
 }
 
 void UIWidget::AppendChildRenderCommands(UIWidget& child, std::vector<UIRenderCommand>& bucket) {
-    if (child.GetParent() == this) child.GenerateRenderCommands(bucket);
+    if (child.GetParent() == this) child.GenerateRenderCommandsWithFocus(bucket);
 }
 
 } // namespace LambUI

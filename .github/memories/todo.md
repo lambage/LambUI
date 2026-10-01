@@ -1,11 +1,23 @@
 # LambUI TODO (as of 2026-10-01)
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
-injection, event routing, Lua/sol2 bindings) is fully implemented and builds
-clean. Tests pass (93 GoogleTest cases; optional Lua disabled in this build).
+injection, event routing, manual Lua C API bindings) is fully implemented and
+builds as C++14. Tests pass (112 GoogleTest cases; optional Lua enabled).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
+- [x] C++14 compatibility and remove sol2 (user-requested).
+  - Boost.Optional preserves optional style/layout values; Boost.Algorithm
+    replaces clamps. Removed C++17 syntax and example filesystem usage.
+  - Manual Lua C API bindings retain the existing scripting surface, with
+    checked userdata, protected callbacks, registry cleanup and detachment.
+    Host API takes lua_State*; binding must die before Lua and UIManager.
+  - Full MSVC/Ninja C++14 build and all 101 tests pass (8 new Lua tests).
+    GL33/SDL3 desktop/compact native smoke checks pass. Clean core/Lua build,
+    fetched Boost installation and exact-C++14 installed core consumer pass.
+  - README covers Boost dependencies and Lua API/lifetime migration. Newer
+    widget bindings remain below; the pinned Lua wrapper emits a CMake
+    deprecation warning but configures/builds successfully on CMake 4.
 - [x] SDF font rendering pipeline (goals.txt item 5)
   - Added `LambUI::FontAtlas` (include/LambUI/UIFontAtlas.h, src/UIFontAtlas.cpp):
     loads a TTF/OTF file via stb_truetype (FetchContent'd, private to the core
@@ -75,8 +87,8 @@ See goals.txt for full architecture vision.
   - Full MSVC/Ninja build and all 34 CTest cases pass (11 new regressions).
     Native visual testing subsequently passed in the GL33/SDL3 showcases
     below; Lua remains disabled.
-  - Follow-ups: nested submenus and multiline tooltips; keyboard navigation
-    and Lua exposure remain separate backlog items.
+  - Nested submenus, multiline tooltips, and keyboard navigation are completed
+    below; Lua exposure remains a separate backlog item.
 - [x] Checkboxes, radio buttons, and configurable windows (user-requested).
   - UICheckBox: checked/enabled state, labels, injected click and Space/Enter.
     UIRadioButton: exclusive groups scoped to siblings; settled-state callbacks.
@@ -213,17 +225,49 @@ See goals.txt for full architecture vision.
     policy switches, drag/resize, title buttons, text/selection input, and pixels.
     Captures cover controls/inputs/canvas/settings/normal/minimized/maximized;
     desktop and compact screenshots inspected. Full build and 44 tests pass.
-- [ ] Animation/tween framework.
+- [x] Add the shared widget showcase to legacy OpenGL 1.1 (user-requested).
+  - Reuses WidgetShowcase with 20px body/26px heading fonts, all controls,
+    menus, scrollbars, and movable/resizable preview windows. Fixed-function
+    material canvas; real frame timing; font overrides and screenshot CLI.
+  - Corrected window/framebuffer scissor scaling. Native checks cover nested,
+    disjoint/empty clips, font selection/fallback, and captured view changes.
+  - Full MSVC/Ninja build and all 101 CTest cases pass. Native GPU smoke and
+    capture inspection pass at 920x680 and 420x680. Core/HAL unchanged;
+    legacy alpha-tested text remains available for renderer comparisons.
 - [x] Reduce font aliasing in the OpenGL 3.3 example (user-reported,
       2026-10-01).
-  - Widened derivative-based SDF edge smoothing without changing text size,
-    atlas metrics, the core library, or other backends.
-  - Native smoke checks now cover normal-size text at 1x/1.5x/2x display
-    scales and integer/half-pixel positions, requiring soft edges and solid
-    strokes. Desktop/compact screenshot comparisons show smoother text.
-  - Full MSVC/Ninja build and all 34 CTest cases pass.
-- [ ] Nested submenus and multiline tooltips.
-- [ ] Focus ring visualization; default-button Enter-key highlight.
+  - Follow-up: thin strokes changed brightness after one-pixel window moves,
+    reproduced at native 1:1 framebuffer/content scale (not a DPI mismatch).
+    Replaced sampled-distance derivatives with a stable UV pixel footprint
+    and four half-pixel coverage samples; linear texture filtering retained.
+  - FontAtlas exposes its baked distance scale as plain metadata. Text size,
+    atlas pixels/metrics, other backends, and HAL/platform boundaries unchanged.
+  - Native regression checks isolated "i" and "Material / Contour" pixel
+    stability under X/Y/diagonal moves at 1x/1.25x/1.5x/2x, plus fractional
+    placements and coverage against a 4x reference. Old shader fails movement.
+  - Full MSVC/Ninja build and all 101 CTest cases pass (Lua enabled).
+    Desktop/compact GL33 GPU smoke and screenshot inspection pass.
+- [x] Nested submenus and multiline tooltips.
+  - Recursive UIMenuItem children; hover/click/keyboard opening, Left return,
+    scoped navigation, whole-chain dismissal and focus restoration. Separate
+    overlay clips, edge flipping, retained cascade direction, and row-scroll
+    dismissal preserve the HAL/injected-input boundaries.
+  - Shared text layout preserves explicit/blank lines and wraps UTF-8 text;
+    tooltips reflow to a 320px/display-width cap and clip excess height.
+  - Seven regressions added. Full MSVC/Ninja build and all 108 CTest cases
+    pass (Lua enabled). GL33/SDL3/legacy GL desktop/compact native smoke
+    passes; submenu and tooltip captures inspected. Shared showcase updated.
+- [x] Focus ring visualization; focused-button Enter/Space feedback.
+  - Two-tone inset outlines follow manager focus, after widget content and
+    within ancestor clips. Per-widget color and opt-out; no layout/HAL changes.
+  - Buttons use their pressed color while an activation key is held; matching
+    release activates once, and focus loss cancels without changing mouse state.
+  - Four regressions; full MSVC/Ninja build and all 112 CTest cases pass (Lua
+    enabled). GL33/SDL3/legacy GL desktop/compact native smoke passes; SDL3
+    focus/pressed captures inspected. README and shared showcase updated.
+- [ ] Explicit dialog-default button selection and Enter routing.
+  - Split from focus visualization: Enter currently targets the focused control;
+    no implicit default action is introduced by drawing a focus ring.
 - [ ] Copy/paste and opt-in selection for static text labels.
 - [ ] Rendering perf: batching/instancing, texture atlas management,
       command buffer dirty-tracking (currently one draw call per command).
@@ -238,6 +282,7 @@ See goals.txt for full architecture vision.
     "EditBox" — missing "DropDown", "Canvas" etc.      
 - [ ] Software renderer backend
   - user provides a custom framebuffer
+- [ ] Animation/tween framework.
 
 ## Notes
 - Full status assessment generated via Explore subagent on 2026-09-30;

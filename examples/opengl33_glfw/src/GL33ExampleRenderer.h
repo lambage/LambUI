@@ -22,7 +22,8 @@ public:
 
 private:
     void BindPipeline();
-    void DrawQuad(const LambUI::UIRenderCommand& command, int mode, GLuint texture = 0, float edge = 0.5f);
+    void DrawQuad(const LambUI::UIRenderCommand& command, int mode, GLuint texture = 0,
+                  float edge = 0.5f, float distanceScale = 0.0f);
     void DrawString(const LambUI::UIRenderCommand& command);
 
     GLuint m_program = 0;
@@ -33,6 +34,7 @@ private:
     GLint m_colorLocation = -1;
     GLint m_modeLocation = -1;
     GLint m_edgeLocation = -1;
+    GLint m_distanceScaleLocation = -1;
     GLint m_timeLocation = -1;
     GLint m_strengthLocation = -1;
     int m_width = 1;

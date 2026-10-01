@@ -15,6 +15,7 @@ struct UIMenuItem {
     std::function<void()> action;
     bool enabled = true;
     bool separator = false;
+    std::vector<UIMenuItem> children;
 };
 
 class LAMBUI_API UIContextMenu : public UIScrollContainer {
@@ -32,11 +33,18 @@ protected:
     void OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) override;
 
 private:
-    struct Row { UIButton* button; UITextWidget* label; UITextureWidget* separator; };
+    friend class UIManager;
+    struct Row { UIButton* button; UITextWidget* label; UITextureWidget* separator; UITextWidget* arrow; };
     void Activate(size_t index);
+    void SizeToItems();
+    void OpenSubmenu(size_t index, bool focus);
+    bool OpenFocusedSubmenu();
+    void HoverRow(float x, float y);
     UIManager& m_manager;
     std::vector<UIMenuItem> m_items;
     std::vector<Row> m_rows;
+    UIContextMenu* m_submenu = nullptr;
+    size_t m_submenuIndex = static_cast<size_t>(-1);
     static constexpr float RowHeight = 24.0f;
 };
 

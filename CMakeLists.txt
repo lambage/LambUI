@@ -6,7 +6,9 @@ project(LambUI
     LANGUAGES CXX
 )
 
-set(CMAKE_CXX_STANDARD 17)
+if (NOT DEFINED CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 14)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -19,7 +21,7 @@ endif()
 
 option(LAMBUI_BUILD_EXAMPLES "Build the LambUI example backends" ${LAMBUI_IS_TOP_LEVEL})
 option(LAMBUI_BUILD_TESTS "Build the LambUI unit test suite" ${LAMBUI_IS_TOP_LEVEL})
-option(LAMBUI_BUILD_LUA_BINDINGS "Build the sol2-based Lua scripting companion library" OFF)
+option(LAMBUI_BUILD_LUA_BINDINGS "Build the Lua C API scripting companion library" OFF)
 option(LAMBUI_INSTALL "Generate install/export targets for LambUI" ${LAMBUI_IS_TOP_LEVEL})
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")

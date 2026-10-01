@@ -5,6 +5,8 @@ namespace LambUI {
 
 namespace { constexpr const char* TAG = "UITabControl"; }
 
+constexpr float UITabControl::HeaderHeight;
+
 UITabControl::UITabControl(std::string name) : UIControl(std::move(name)) {
     LAMBUI_LOGT(TAG, "constructed '{}'", GetName());
 }

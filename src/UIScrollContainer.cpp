@@ -106,7 +106,7 @@ private:
         UIRect thumb = GetComputedRect();
         const float length = std::max(0.0f, m_vertical ? thumb.height : thumb.width);
         const float ratio = GetContentLength() > 0.0f ? GetViewportLength() / GetContentLength() : 1.0f;
-        const float thumbLength = std::clamp(length * ratio, std::min(20.0f, length), length);
+        const float thumbLength = boost::algorithm::clamp(length * ratio, std::min(20.0f, length), length);
         const float position = GetOverflow() > 0.0f ? GetOffset() / GetOverflow() * (length - thumbLength) : 0.0f;
         if (m_vertical) {
             thumb.y += position;
@@ -180,8 +180,8 @@ void UIScrollContainer::ApplyScrollOffset() {
     const auto rect = GetContentRect();
     const float maxScrollX = std::max(0.0f, m_contentWidth - rect.width);
     const float maxScrollY = std::max(0.0f, m_contentHeight - rect.height);
-    m_scrollX = std::clamp(m_scrollX, 0.0f, maxScrollX);
-    m_scrollY = std::clamp(m_scrollY, 0.0f, maxScrollY);
+    m_scrollX = boost::algorithm::clamp(m_scrollX, 0.0f, maxScrollX);
+    m_scrollY = boost::algorithm::clamp(m_scrollY, 0.0f, maxScrollY);
 
     LAMBUI_LOGT(TAG, "'{}' scroll offset -> ({}, {})", GetName(), m_scrollX, m_scrollY);
 

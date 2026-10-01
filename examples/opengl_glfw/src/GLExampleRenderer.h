@@ -17,7 +17,7 @@ public:
     GLExampleRenderer(const GLExampleRenderer&) = delete;
     GLExampleRenderer& operator=(const GLExampleRenderer&) = delete;
 
-    void SetViewportSize(int width, int height);
+    void SetViewportSize(int width, int height, int framebufferWidth = -1, int framebufferHeight = -1);
 
     // Uploads the atlas's SDF bitmap as a GL texture; call once at startup.
     bool LoadFont(const LambUI::FontAtlas& atlas, void* fontHandle = nullptr);
@@ -29,6 +29,8 @@ private:
 
     int m_viewportWidth = 0;
     int m_viewportHeight = 0;
+    int m_framebufferWidth = 0;
+    int m_framebufferHeight = 0;
 
     std::unordered_map<void*, std::pair<const LambUI::FontAtlas*, unsigned int>> m_fonts;
 };

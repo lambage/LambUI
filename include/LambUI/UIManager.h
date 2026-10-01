@@ -55,6 +55,20 @@ public:
     void FireGameEvent(const std::string& eventName, void* payload = nullptr);
 
 private:
+    friend class UIContextMenu;
+    struct Submenu {
+        UIWidget* widget;
+        UIWidget* parent;
+        UIWidget* owner;
+        float width;
+        float height;
+    };
+    void ShowSubmenu(UIWidget& popup, UIWidget& parent, UIWidget& owner, bool focus);
+    void CloseSubmenus(UIWidget& parent, bool restoreFocus = true);
+    void PlaceSubmenu(const Submenu& submenu);
+    bool IsPopupOpen(const UIWidget* popup) const;
+    UIWidget* PopupScope() const;
+    UIWidget* HitTestPopups(float x, float y) const;
     void SetFocusedWidget(UIWidget* widget);
     void MoveFocus(bool backwards);
     void CollectFocusTargets(UIWidget& widget, std::vector<UIWidget*>& targets) const;
@@ -76,6 +90,7 @@ private:
     std::unique_ptr<UIWidget> m_overlayRoot;
     UITooltip* m_tooltip = nullptr;
     UIWidget* m_activePopup = nullptr;
+    std::vector<Submenu> m_submenus;
     UIWidget* m_popupOwner = nullptr;
     UIWidget* m_tooltipTarget = nullptr;
     float m_tooltipDelay = 0.5f;

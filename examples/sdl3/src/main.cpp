@@ -4,7 +4,7 @@
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 
@@ -322,7 +322,7 @@ int main(int argc, char** argv) {
         for (const char* candidate : {"C:/Windows/Fonts/segoeui.ttf",
                                      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                                      "/System/Library/Fonts/Supplemental/Arial.ttf"}) {
-            if (std::filesystem::exists(candidate)) {
+            if (std::ifstream(candidate).good()) {
                 fontPath = candidate;
                 break;
             }
@@ -333,7 +333,7 @@ int main(int argc, char** argv) {
         for (const char* candidate : {"C:/Windows/Fonts/georgia.ttf",
                                      "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
                                      "/System/Library/Fonts/Supplemental/Georgia.ttf"}) {
-            if (std::filesystem::exists(candidate)) {
+            if (std::ifstream(candidate).good()) {
                 headingFontPath = candidate;
                 break;
             }

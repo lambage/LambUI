@@ -32,7 +32,7 @@ public:
 
     template <typename TWidget, typename... TArgs>
     TWidget* CreateChild(TArgs&&... args) {
-        static_assert(std::is_base_of_v<UIWidget, TWidget>, "TWidget must derive from UIWidget");
+        static_assert(std::is_base_of<UIWidget, TWidget>::value, "TWidget must derive from UIWidget");
         auto child = std::make_unique<TWidget>(std::forward<TArgs>(args)...);
         TWidget* raw = child.get();
         child->m_parent = this;
@@ -61,7 +61,7 @@ public:
     void SetRelativeSize(float widthFraction, float heightFraction);
     void SetStyle(const UIStyle& style);
     void ClearStyle();
-    const std::optional<UIStyle>& GetStyle() const { return m_style; }
+    const boost::optional<UIStyle>& GetStyle() const { return m_style; }
     const UIRect& GetComputedRect() const { return m_computedRect; }
 
     // --- Visibility / input state ---
@@ -71,6 +71,10 @@ public:
     bool IsMouseEnabled() const { return m_isMouseEnabled; }
     void SetKeyboardEnabled(bool enabled);
     bool IsKeyboardEnabled() const { return m_isKeyboardEnabled; }
+    void SetFocusRingEnabled(bool enabled);
+    bool IsFocusRingEnabled() const { return m_focusRingEnabled; }
+    void SetFocusRingColor(uint32_t color);
+    uint32_t GetFocusRingColor() const { return m_focusRingColor; }
     virtual bool ClipsChildren() const { return false; }
     virtual UIRect GetChildClipRect() const { return m_computedRect; }
     void SetTooltip(std::string text);
@@ -126,6 +130,7 @@ private:
     // Only UIManager drives these; they require top-down tree traversal.
     void ResolveLayout();
     void SetComputedRectDirect(const UIRect& rect);
+    void GenerateRenderCommandsWithFocus(std::vector<UIRenderCommand>& bucket);
 
     std::string m_name;
     std::string m_tooltip;
@@ -139,7 +144,7 @@ private:
     float m_height = 0.0f;
     UIInsets m_margin;
     UIInsets m_padding;
-    std::optional<UIStyle> m_style;
+    boost::optional<UIStyle> m_style;
     float m_minWidth = 0.0f;
     float m_minHeight = 0.0f;
     float m_maxWidth = std::numeric_limits<float>::infinity();
@@ -150,6 +155,9 @@ private:
     bool m_isVisible = true;
     bool m_isMouseEnabled = true;
     bool m_isKeyboardEnabled = true;
+    bool m_hasManagerFocus = false;
+    bool m_focusRingEnabled = true;
+    uint32_t m_focusRingColor = 0xB9F4DDFFu;
     bool m_isDirty = true;
     bool m_paddingChanged = false;
 };

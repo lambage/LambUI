@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace LambUI::TextLayout {
+namespace LambUI { namespace TextLayout {
 
 struct Line {
     size_t begin = 0;
@@ -111,8 +111,8 @@ inline View BuildView(const std::string& text, const ITextMeasurer* measurer,
     for (const auto& line : view.layout.lines) maximumWidth = std::max(maximumWidth, line.width);
     const float maximumX = wrap ? 0.0f : std::max(0.0f, maximumWidth + view.caretWidth - view.clip.width);
     const float maximumY = std::max(0.0f, static_cast<float>(view.layout.lines.size()) * view.layout.lineHeight - view.clip.height);
-    view.scrollX = std::clamp(scrollX, 0.0f, maximumX);
-    view.scrollY = std::clamp(scrollY, 0.0f, maximumY);
+    view.scrollX = boost::algorithm::clamp(scrollX, 0.0f, maximumX);
+    view.scrollY = boost::algorithm::clamp(scrollY, 0.0f, maximumY);
     if (revealCaret) {
         view.scrollX = std::max(view.scrollX, view.caretX + view.caretWidth - view.clip.width);
         view.scrollX = std::min(view.scrollX, view.caretX);
@@ -137,4 +137,4 @@ inline size_t HitPosition(const std::string& text, const Line& line, float horiz
     return closest;
 }
 
-} // namespace LambUI::TextLayout
+} } // namespace LambUI::TextLayout

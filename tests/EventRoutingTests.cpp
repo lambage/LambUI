@@ -8,7 +8,9 @@
 #include "LambUI/UITreeView.h"
 #include "LambUI/UIMenuBar.h"
 #include "LambUI/UIRadioButton.h"
+#include "LambUI/UITextureWidget.h"
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -18,9 +20,193 @@ using namespace LambUI;
 namespace {
 class NullRenderer : public IRenderer {
 public:
-    void SubmitRenderCommands(const std::vector<UIRenderCommand>&) override {}
+    std::vector<UIRenderCommand> commands;
+    void SubmitRenderCommands(const std::vector<UIRenderCommand>& bucket) override { commands = bucket; }
 };
 } // namespace
+
+TEST(FocusVisualization, RingFollowsFocusAndHonorsAppearanceAndEligibility) {
+    auto renderer = std::make_shared<NullRenderer>();
+    UIManager manager(renderer);
+    auto* button = manager.GetRoot().CreateChild<UIButton>("Button");
+    auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    for (auto* widget : std::vector<UIWidget*>{button, input}) {
+        widget->SetSize(100, 30);
+        widget->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft,
+                         widget == button ? 10.0f : 120.0f, 10);
+        widget->SetFocusRingColor(0xFFCC00FFu);
+    }
+    const auto ringCount = [&] {
+        manager.Render();
+        return std::count_if(renderer->commands.begin(), renderer->commands.end(),
+            [](const UIRenderCommand& command) { return command.color == 0xFFCC00FFu; });
+    };
+    manager.Update(0);
+    EXPECT_EQ(ringCount(), 0);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    EXPECT_EQ(ringCount(), 4);
+    const auto lastRing = std::find_if(renderer->commands.rbegin(), renderer->commands.rend(),
+        [](const UIRenderCommand& command) { return command.color == 0xFFCC00FFu; });
+    ASSERT_NE(lastRing, renderer->commands.rend());
+    EXPECT_FLOAT_EQ(lastRing->x, 108);
+    button->SetFocusRingEnabled(false);
+    EXPECT_EQ(ringCount(), 0);
+    EXPECT_EQ(manager.GetFocusedWidget(), button);
+    button->SetFocusRingEnabled(true);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    EXPECT_EQ(ringCount(), 4);
+    EXPECT_FLOAT_EQ(renderer->commands.back().x, 218);
+    manager.InjectKeyEvent(ScanCode::LeftShift, true);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::LeftShift, false);
+    EXPECT_EQ(manager.GetFocusedWidget(), button);
+    EXPECT_EQ(ringCount(), 4);
+    button->SetKeyboardEnabled(false);
+    EXPECT_EQ(ringCount(), 0);
+    EXPECT_EQ(manager.GetFocusedWidget(), nullptr);
+    manager.InjectMouseMove(125, 15);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(manager.GetFocusedWidget(), input);
+    EXPECT_EQ(ringCount(), 4);
+    input->SetVisible(false);
+    EXPECT_EQ(ringCount(), 0);
+    EXPECT_EQ(manager.GetFocusedWidget(), nullptr);
+}
+
+TEST(FocusVisualization, RingRespectsChildPaintingSiblingOrderAndAncestorClip) {
+    auto renderer = std::make_shared<NullRenderer>();
+    UIManager manager(renderer);
+    auto* scroll = manager.GetRoot().CreateChild<UIScrollContainer>("Scroll");
+    scroll->SetSize(100, 40);
+    scroll->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    scroll->SetContentSize(100, 100);
+    scroll->SetScrollbarsEnabled(false);
+    auto* button = scroll->GetContent()->CreateChild<UIButton>("Button");
+    button->SetSize(80, 30);
+    button->SetPoint(AnchorPoint::TopLeft, scroll->GetContent(), AnchorPoint::TopLeft, 0, 20);
+    button->SetFocusRingColor(0xFFCC00FFu);
+    auto* child = button->CreateChild<UITextureWidget>("Child");
+    child->SetAllPoints(button);
+    child->SetTint(0x123456FFu);
+    auto* later = scroll->GetContent()->CreateChild<UITextureWidget>("LaterSibling");
+    later->SetAllPoints(button);
+    later->SetTint(0x654321FFu);
+    manager.Update(0);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    scroll->SetScrollOffset(0, 0);
+    manager.Update(0);
+    manager.Render();
+    int clipDepth = 0;
+    int ringCount = 0;
+    bool childPainted = false;
+    bool siblingPainted = false;
+    for (const auto& command : renderer->commands) {
+        if (command.type == RenderCommandType::PushScissor) ++clipDepth;
+        if (command.type == RenderCommandType::PopScissor) --clipDepth;
+        if (command.color == 0x123456FFu) childPainted = true;
+        if (command.color == 0x654321FFu) siblingPainted = true;
+        if (command.color != 0xFFCC00FFu) continue;
+        ++ringCount;
+        EXPECT_GT(clipDepth, 0);
+        EXPECT_TRUE(childPainted);
+        EXPECT_FALSE(siblingPainted);
+    }
+    EXPECT_EQ(ringCount, 4);
+    EXPECT_EQ(clipDepth, 0);
+    EXPECT_TRUE(siblingPainted);
+}
+
+TEST(FocusVisualization, TreePopupRestorationAndTinyBoundsUseSharedDecoration) {
+    auto renderer = std::make_shared<NullRenderer>();
+    UIManager manager(renderer);
+    auto* tree = manager.GetRoot().CreateChild<UITreeView>("Tree");
+    tree->SetSize(100, 60);
+    tree->SetPadding({5, 5, 5, 5});
+    tree->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    tree->SetFocusRingColor(0xFFCC00FFu);
+    tree->AddNode(0, "Item");
+    auto* menu = manager.GetOverlayRoot().CreateChild<UIContextMenu>(manager, "Menu");
+    menu->SetItems({{"Item", {}}});
+    manager.Update(0);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.Render();
+    EXPECT_EQ(manager.GetFocusedWidget(), tree);
+    EXPECT_EQ(renderer->commands.back().color, 0xFFCC00FFu);
+    int clipDepth = 0;
+    for (const auto& command : renderer->commands) {
+        if (command.type == RenderCommandType::PushScissor) ++clipDepth;
+        if (command.type == RenderCommandType::PopScissor) --clipDepth;
+        if (command.color == 0xFFCC00FFu) EXPECT_EQ(clipDepth, 0);
+    }
+    menu->Open(110, 10, tree);
+    manager.GetFocusedWidget()->SetFocusRingColor(0xCC00FFFFu);
+    manager.Render();
+    EXPECT_EQ(std::count_if(renderer->commands.begin(), renderer->commands.end(),
+        [](const UIRenderCommand& command) { return command.color == 0xFFCC00FFu; }), 0);
+    EXPECT_EQ(std::count_if(renderer->commands.begin(), renderer->commands.end(),
+        [](const UIRenderCommand& command) { return command.color == 0xCC00FFFFu; }), 4);
+    manager.InjectKeyEvent(ScanCode::Escape, true);
+    manager.Render();
+    EXPECT_EQ(manager.GetFocusedWidget(), tree);
+    EXPECT_EQ(renderer->commands.back().color, 0xFFCC00FFu);
+    tree->SetSize(0.5f, 0.5f);
+    tree->SetPadding({});
+    manager.Update(0);
+    manager.Render();
+    int tinyStrokes = 0;
+    for (const auto& command : renderer->commands) {
+        if (command.color != 0x172127FFu) continue;
+        ++tinyStrokes;
+        EXPECT_GT(command.width, 0);
+        EXPECT_GT(command.height, 0);
+        EXPECT_GE(command.x, 0);
+        EXPECT_GE(command.y, 0);
+        EXPECT_LE(command.x + command.width, 0.5f);
+        EXPECT_LE(command.y + command.height, 0.5f);
+    }
+    EXPECT_EQ(tinyStrokes, 2);
+    tree->SetSize(0, 0);
+    manager.Update(0);
+    manager.Render();
+    EXPECT_EQ(std::count_if(renderer->commands.begin(), renderer->commands.end(),
+        [](const UIRenderCommand& command) { return command.color == 0x172127FFu; }), 0);
+}
+
+TEST(FocusVisualization, ButtonShowsPairedKeyboardPressAndCancelsOnFocusLoss) {
+    auto renderer = std::make_shared<NullRenderer>();
+    UIManager manager(renderer);
+    auto* button = manager.GetRoot().CreateChild<UIButton>("Button");
+    button->SetSize(100.0f, 30.0f);
+    button->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
+    button->SetNormalColor(0x202020FFu);
+    button->SetPressedColor(0x909090FFu);
+    manager.GetRoot().CreateChild<UIButton>("Next");
+    int clicks = 0;
+    button->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    manager.Update(0.0f);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.Render();
+    ASSERT_FALSE(renderer->commands.empty());
+    EXPECT_EQ(renderer->commands.front().color, 0x909090FFu);
+    EXPECT_EQ(button->GetState(), ControlState::Normal);
+    EXPECT_EQ(clicks, 0);
+    manager.InjectKeyEvent(ScanCode::Space, false);
+    EXPECT_TRUE(button->IsKeyboardPressed());
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    manager.Render();
+    EXPECT_EQ(renderer->commands.front().color, 0x202020FFu);
+    EXPECT_EQ(clicks, 1);
+    manager.InjectKeyEvent(ScanCode::Space, true);
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::Space, false);
+    manager.Render();
+    EXPECT_FALSE(button->IsKeyboardPressed());
+    EXPECT_EQ(renderer->commands.front().color, 0x202020FFu);
+    EXPECT_EQ(clicks, 1);
+}
 
 TEST(KeyboardNavigation, TabFocusesInputsInTreeOrderAndWraps) {
     UIManager manager(std::make_shared<NullRenderer>());

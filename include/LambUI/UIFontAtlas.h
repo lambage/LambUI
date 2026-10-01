@@ -40,6 +40,7 @@ public:
     const std::vector<uint8_t>& GetAtlasPixels() const { return m_atlasPixels; }
     // Distance-field byte value that represents the glyph's exact edge.
     uint8_t GetOnEdgeValue() const { return m_onEdgeValue; }
+    float GetPixelDistanceScale() const { return m_pixelDistanceScale; }
 
 private:
     std::unordered_map<char32_t, GlyphInfo> m_glyphs;
@@ -49,6 +50,7 @@ private:
     float m_lineHeight = 0.0f;
     float m_ascent = 0.0f;
     uint8_t m_onEdgeValue = 180;
+    float m_pixelDistanceScale = 0.0f;
 };
 
 // Concrete ITextMeasurer backed by borrowed atlases; registered handles select

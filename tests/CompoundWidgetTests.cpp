@@ -106,6 +106,7 @@ TEST(FontSelection, InputBoxPreservesFontThroughEditingAndFixedSize) {
     UIManager manager(renderer);
     FontAtlas font;
     auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    input->SetFocusRingEnabled(false);
     input->SetSize(180, 30);
     input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
     input->SetFont(&font);
@@ -133,6 +134,7 @@ TEST(InputCaret, BlinksUsingInjectedTimeAndResetsOnEditingAndFocus) {
     auto measurer = std::make_shared<FontTestMeasurer>();
     UIManager manager(renderer, measurer);
     auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    input->SetFocusRingEnabled(false);
     input->SetSize(180, 30);
     input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 10, 20);
     manager.Update(0);
@@ -186,6 +188,7 @@ TEST(InputCaret, UsesSelectedFontAndKeepsLongTextInsertionPointClipped) {
     UIManager manager(renderer, measurer);
     float alternateAdvance = 10.0f;
     auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    input->SetFocusRingEnabled(false);
     input->SetSize(40, 24);
     input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 10, 20);
     input->SetFont(&alternateAdvance);
@@ -237,6 +240,7 @@ TEST(InputCaret, FallbackCountsUtf8CodepointsAndRejectsInvalidFrameTimes) {
     auto renderer = std::make_shared<RecordingRenderer>();
     UIManager manager(renderer);
     auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
+    input->SetFocusRingEnabled(false);
     input->SetSize(180, 30);
     input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
     manager.InjectKeyEvent(ScanCode::Tab, true);
@@ -269,6 +273,7 @@ TEST(InputCaret, TinyFieldsAndHiddenAncestorsCannotLeakCaret) {
     auto* parent = manager.GetRoot().CreateChild<UIWidget>("Parent");
     parent->SetAllPoints(&manager.GetRoot());
     auto* input = parent->CreateChild<UIInputBox>("Input");
+    input->SetFocusRingEnabled(false);
     input->SetSize(8, 30);
     input->SetPoint(AnchorPoint::TopLeft, parent, AnchorPoint::TopLeft);
     manager.InjectKeyEvent(ScanCode::Tab, true);
@@ -410,6 +415,7 @@ TEST(MultilineInput, SoftLineNavigationAndCaretStayInsideScrolledViewport) {
     auto measurer = std::make_shared<FontTestMeasurer>();
     UIManager manager(renderer, measurer);
     auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetFocusRingEnabled(false);
     input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
     input->SetMultiline(true);
     input->SetSize(33, 28);
@@ -452,6 +458,7 @@ TEST(TextWrapping, BoundarySpacesStayWithPreviousLineWithoutShiftingCaret) {
     auto renderer = std::make_shared<RecordingRenderer>();
     UIManager manager(renderer);
     auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetFocusRingEnabled(false);
     input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
     input->SetSize(33, 60);
     input->SetMultiline(true);
@@ -539,6 +546,7 @@ TEST(TextSelection, MultilineRangeHighlightsAndDeletesWithOneNotification) {
     auto renderer = std::make_shared<RecordingRenderer>();
     UIManager manager(renderer);
     auto* input = manager.GetRoot().CreateChild<UIInputBox>();
+    input->SetFocusRingEnabled(false);
     input->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
     input->SetSize(120, 80);
     input->SetMultiline(true);
@@ -1133,6 +1141,7 @@ TEST_F(CompoundWidgets, TabsSwitchThroughInjectionAndPreserveHiddenPageState) {
 
 TEST_F(CompoundWidgets, TreeExpansionSelectionScrollingAndClear) {
     auto* tree = manager.GetRoot().CreateChild<UITreeView>("Tree");
+    tree->SetFocusRingEnabled(false);
     tree->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
     tree->SetSize(200.0f, 48.0f);
     const auto parent = tree->AddNode(UITreeView::RootNode, "Parent");
@@ -1169,6 +1178,7 @@ TEST_F(CompoundWidgets, TreeExpansionSelectionScrollingAndClear) {
 TEST_F(CompoundWidgets, PopupRendersLastClampsAndConsumesOutsideDismissal) {
     manager.SetDisplaySize(200.0f, 100.0f);
     auto* popup = manager.GetOverlayRoot().CreateChild<UIButton>("Popup");
+    popup->SetFocusRingEnabled(false);
     popup->SetSize(80.0f, 50.0f);
     popup->SetNormalColor(0xFF112233u);
     auto* background = manager.GetRoot().CreateChild<UIButton>("Background");
@@ -1195,6 +1205,7 @@ TEST_F(CompoundWidgets, TooltipUsesInjectedTimeClampsAndDoesNotCaptureInput) {
     manager.SetDisplaySize(120.0f, 60.0f);
     manager.SetTooltipDelay(0.5f);
     auto* button = manager.GetRoot().CreateChild<UIButton>();
+    button->SetFocusRingEnabled(false);
     button->SetAllPoints(&manager.GetRoot());
     button->SetTooltip("Details");
     int clicks = 0;
@@ -1219,6 +1230,57 @@ TEST_F(CompoundWidgets, TooltipUsesInjectedTimeClampsAndDoesNotCaptureInput) {
     manager.Update(0.0f);
     manager.Render();
     EXPECT_TRUE(renderer->bucket.empty());
+}
+
+TEST_F(CompoundWidgets, TooltipPreservesExplicitBlankLinesAndWrapsUtf8ToViewport) {
+    manager.SetDisplaySize(60.0f, 200.0f);
+    manager.SetTooltipDelay(0.0f);
+    auto* button = manager.GetRoot().CreateChild<UIButton>();
+    button->SetAllPoints(&manager.GetRoot());
+    button->SetTooltip("AB\r\n\rC\n\n\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9");
+    manager.Update(0.0f);
+    manager.InjectMouseMove(55.0f, 10.0f);
+    manager.Update(0.0f);
+    manager.Render();
+    std::vector<UIRenderCommand> lines;
+    for (const auto& command : renderer->bucket)
+        if (command.type == RenderCommandType::DrawString) lines.push_back(command);
+    ASSERT_EQ(lines.size(), 4u);
+    EXPECT_EQ(lines[0].text, "AB");
+    EXPECT_EQ(lines[1].text, "C");
+    EXPECT_FLOAT_EQ(lines[1].y - lines[0].y, 32.0f);
+    EXPECT_EQ(lines[2].text.size(), 12u);
+    EXPECT_EQ(lines[3].text, "\xC3\xA9");
+    EXPECT_FLOAT_EQ(renderer->bucket[1].width, 60.0f);
+    EXPECT_FLOAT_EQ(renderer->bucket[1].height, 104.0f);
+    manager.SetDisplaySize(120.0f, 200.0f);
+    manager.Update(0.0f);
+    manager.Render();
+    EXPECT_FLOAT_EQ(renderer->bucket[1].width, 68.0f);
+    EXPECT_FLOAT_EQ(renderer->bucket[1].height, 88.0f);
+}
+
+TEST(TooltipLayout, UsesMeasuredLineHeightAndClipsTinyViewports) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer, std::make_shared<FontTestMeasurer>());
+    manager.SetDisplaySize(48.0f, 100.0f);
+    manager.SetTooltipDelay(0.0f);
+    auto* button = manager.GetRoot().CreateChild<UIButton>();
+    button->SetAllPoints(&manager.GetRoot());
+    button->SetTooltip("one two\n");
+    manager.Update(0.0f);
+    manager.Render();
+    EXPECT_FLOAT_EQ(renderer->bucket[1].height, 44.0f);
+    EXPECT_EQ(renderer->bucket[3].text, "one ");
+    EXPECT_EQ(renderer->bucket[4].text, "two");
+    EXPECT_FLOAT_EQ(renderer->bucket[4].y - renderer->bucket[3].y, 12.0f);
+    manager.SetDisplaySize(5.0f, 5.0f);
+    manager.Update(0.0f);
+    manager.Render();
+    EXPECT_FLOAT_EQ(renderer->bucket[1].width, 5.0f);
+    EXPECT_FLOAT_EQ(renderer->bucket[1].height, 5.0f);
+    EXPECT_EQ(renderer->bucket[2].type, RenderCommandType::PushScissor);
+    EXPECT_EQ(renderer->bucket.back().type, RenderCommandType::PopScissor);
 }
 
 TEST_F(CompoundWidgets, ContextMenuActionsDisabledRowsReplacementAndScrolling) {
@@ -1247,6 +1309,173 @@ TEST_F(CompoundWidgets, ContextMenuActionsDisabledRowsReplacementAndScrolling) {
     EXPECT_EQ(actions, 11);
     menu->SetItems({});
     menu->Open(0.0f, 0.0f);
+    EXPECT_FALSE(menu->IsOpen());
+}
+
+TEST_F(CompoundWidgets, NestedSubmenusHoverSwitchDisabledAndLeafAction) {
+    manager.SetDisplaySize(600.0f, 240.0f);
+    manager.InjectMouseMove(590.0f, 230.0f);
+    auto* menu = manager.GetOverlayRoot().CreateChild<UIContextMenu>(manager, "Nested");
+    int actions = 0;
+    menu->SetItems({
+        {"Branch", [&] { actions += 100; }, true, false,
+            {{"Deeper", {}, true, false, {{"Leaf", [&] { ++actions; }}}}}},
+        {"Disabled", {}, false, false, {{"Unavailable", [&] { actions += 100; }}}},
+        {"Sibling", {}, true, false, {{"Other", [&] { actions += 10; }}}}
+    });
+    menu->Open(0.0f, 0.0f);
+    manager.InjectMouseMove(20.0f, 12.0f);
+    manager.InjectMouseMove(180.0f, 12.0f);
+    manager.Render();
+    bool leafRendered = false;
+    int clips = 0;
+    for (const auto& command : renderer->bucket) {
+        if (command.type == RenderCommandType::PushScissor) ++clips;
+        if (command.type == RenderCommandType::PopScissor) --clips;
+        if (command.text == "Leaf") { leafRendered = true; EXPECT_EQ(clips, 1); }
+        EXPECT_GE(clips, 0);
+    }
+    EXPECT_TRUE(leafRendered);
+    EXPECT_EQ(clips, 0);
+    EXPECT_EQ(manager.GetActivePopup(), menu);
+    Click(340.0f, 12.0f);
+    EXPECT_EQ(actions, 1);
+    EXPECT_FALSE(menu->IsOpen());
+    menu->Open(0.0f, 0.0f);
+    manager.InjectMouseMove(20.0f, 12.0f);
+    manager.InjectMouseMove(20.0f, 36.0f);
+    manager.Render();
+    for (const auto& command : renderer->bucket) {
+        EXPECT_NE(command.text, "Deeper");
+        EXPECT_NE(command.text, "Unavailable");
+    }
+    manager.InjectMouseMove(20.0f, 60.0f);
+    Click(180.0f, 60.0f);
+    EXPECT_EQ(actions, 11);
+    EXPECT_FALSE(menu->IsOpen());
+}
+
+TEST_F(CompoundWidgets, NestedSubmenusKeyboardReturnsToParentAndRestoresExternalFocus) {
+    manager.SetDisplaySize(600.0f, 240.0f);
+    auto* button = manager.GetRoot().CreateChild<UIButton>();
+    button->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 500.0f, 200.0f);
+    button->SetSize(80.0f, 30.0f);
+    Click(520.0f, 210.0f);
+    auto* menu = manager.GetOverlayRoot().CreateChild<UIContextMenu>(manager);
+    int actions = 0;
+    menu->SetItems({{"Branch", {}, true, false,
+        {{"Disabled", {}, false}, {"Deeper", {}, true, false,
+            {{"Leaf", [&] { ++actions; }}}}}}, {"Other", {}}});
+    menu->Open(0.0f, 0.0f);
+    auto* parentRow = manager.GetFocusedWidget();
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    auto* childRow = manager.GetFocusedWidget();
+    EXPECT_NE(parentRow, childRow);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    EXPECT_NE(childRow, manager.GetFocusedWidget());
+    manager.InjectKeyEvent(ScanCode::Left, true);
+    EXPECT_EQ(manager.GetFocusedWidget(), childRow);
+    manager.InjectKeyEvent(ScanCode::Left, true);
+    EXPECT_EQ(manager.GetFocusedWidget(), parentRow);
+    manager.InjectMouseMove(20.0f, 12.0f);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    EXPECT_EQ(manager.GetFocusedWidget(), childRow);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_NE(manager.GetFocusedWidget(), childRow);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(actions, 1);
+    EXPECT_FALSE(menu->IsOpen());
+    EXPECT_EQ(manager.GetFocusedWidget(), button);
+    menu->Open(0.0f, 0.0f);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    manager.InjectKeyEvent(ScanCode::Escape, true);
+    EXPECT_FALSE(menu->IsOpen());
+    EXPECT_EQ(manager.GetFocusedWidget(), button);
+}
+
+TEST_F(CompoundWidgets, NestedSubmenusFlipClampResizeScrollAndConsumeOutsideClick) {
+    manager.SetDisplaySize(400.0f, 100.0f);
+    auto* background = manager.GetRoot().CreateChild<UIButton>();
+    background->SetAllPoints(&manager.GetRoot());
+    int clicks = 0;
+    background->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    manager.InjectMouseMove(0.0f, 99.0f);
+    auto* menu = manager.GetOverlayRoot().CreateChild<UIContextMenu>(manager);
+    menu->SetItems({{"Branch", {}, true, false, {{"Child", {}}, {"Last", {}}}},
+        {"2", {}}, {"3", {}}, {"4", {}}, {"5", {}}, {"6", {}}});
+    menu->Open(390.0f, 90.0f);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    auto* child = dynamic_cast<UIContextMenu*>(manager.GetFocusedWidget()->GetParent()->GetParent());
+    ASSERT_NE(child, nullptr);
+    EXPECT_TRUE(child->IsOpen());
+    EXPECT_FLOAT_EQ(child->GetComputedRect().x, 80.0f);
+    EXPECT_LE(child->GetComputedRect().y + child->GetComputedRect().height, 100.0f);
+    manager.SetDisplaySize(100.0f, 60.0f);
+    manager.Update(0.0f);
+    EXPECT_FLOAT_EQ(child->GetComputedRect().width, 100.0f);
+    manager.SetDisplaySize(400.0f, 100.0f);
+    manager.Update(0.0f);
+    EXPECT_FLOAT_EQ(child->GetComputedRect().width, 160.0f);
+    menu->SetScrollOffset(0.0f, 48.0f);
+    manager.Update(0.0f);
+    EXPECT_FALSE(child->IsOpen());
+    EXPECT_FLOAT_EQ(menu->GetScrollY(), 44.0f);
+    menu->SetScrollOffset(0.0f, 0.0f);
+    manager.Update(0.0f);
+    manager.InjectKeyEvent(ScanCode::Home, true);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    EXPECT_TRUE(child->IsOpen());
+    Click(10.0f, 90.0f);
+    EXPECT_FALSE(menu->IsOpen());
+    EXPECT_FALSE(child->IsOpen());
+    EXPECT_EQ(clicks, 0);
+}
+
+TEST_F(CompoundWidgets, NestedSubmenusKeepLeftwardDirectionAndScrollOnlyHoveredMenu) {
+    manager.SetDisplaySize(800.0f, 96.0f);
+    manager.InjectMouseMove(0.0f, 95.0f);
+    auto* menu = manager.GetOverlayRoot().CreateChild<UIContextMenu>(manager);
+    int actions = 0;
+    std::vector<UIMenuItem> leaves = {{"One", {}}, {"Two", {}}, {"Three", {}},
+        {"Four", {}}, {"Five", {}}, {"Last", [&] { ++actions; }}};
+    menu->SetItems({{"Branch", {}, true, false,
+        {{"Deeper", {}, true, false, std::move(leaves)}}}});
+    menu->Open(790.0f, 0.0f);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    auto* deepest = dynamic_cast<UIContextMenu*>(manager.GetFocusedWidget()->GetParent()->GetParent());
+    ASSERT_NE(deepest, nullptr);
+    EXPECT_FLOAT_EQ(deepest->GetComputedRect().x, 320.0f);
+    manager.InjectMouseMove(340.0f, 12.0f);
+    manager.InjectMouseWheel(0.0f, -48.0f);
+    manager.Update(0.0f);
+    EXPECT_FLOAT_EQ(deepest->GetScrollY(), 48.0f);
+    EXPECT_FLOAT_EQ(menu->GetScrollY(), 0.0f);
+    Click(340.0f, 84.0f);
+    EXPECT_EQ(actions, 1);
+    EXPECT_FALSE(menu->IsOpen());
+}
+
+TEST_F(CompoundWidgets, NestedSubmenuActionCanReplaceRootAndReopen) {
+    manager.InjectMouseMove(500.0f, 500.0f);
+    auto* menu = manager.GetOverlayRoot().CreateChild<UIContextMenu>(manager);
+    int actions = 0;
+    menu->SetItems({{"Branch", {}, true, false, {{"Replace", [&] {
+        ++actions;
+        menu->SetItems({{"Replacement", [&] { ++actions; }}});
+        menu->Open(0.0f, 0.0f);
+    }}}}});
+    menu->Open(0.0f, 0.0f);
+    manager.InjectKeyEvent(ScanCode::Right, true);
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(actions, 1);
+    EXPECT_TRUE(menu->IsOpen());
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(actions, 2);
     EXPECT_FALSE(menu->IsOpen());
 }
 

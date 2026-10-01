@@ -24,6 +24,7 @@ public:
 
     ControlState GetState() const { return m_state; }
     bool HasKeyboardFocus() const { return m_keyboardFocused; }
+    bool IsKeyboardPressed() const { return m_keyboardFocused && CanFocus() && IsKeyboardEnabled() && m_activationKey != 0; }
     bool CanFocus() const override { return IsMouseEnabled(); }
     void OnFocusGained() override;
     void OnFocusLost() override;

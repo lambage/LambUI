@@ -1,5 +1,5 @@
 #include "LambUI/UILayoutSolver.h"
-#include <optional>
+#include <boost/optional.hpp>
 
 namespace LambUI {
 
@@ -67,7 +67,7 @@ float VerticalPointOnRect(const UIRect& rect, AnchorPoint p) {
 UIRect ResolveAnchoredRect(const std::vector<AnchorConstraint>& constraints,
                            float explicitWidth, float explicitHeight,
                            const UIRect& previousRect) {
-    std::optional<float> left, right, centerX, top, bottom, centerY;
+    boost::optional<float> left, right, centerX, top, bottom, centerY;
 
     for (const auto& c : constraints) {
         const float targetX = HorizontalPointOnRect(c.relativeRect, c.relativePoint) + c.xOffset;

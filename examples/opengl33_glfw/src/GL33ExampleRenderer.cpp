@@ -29,15 +29,25 @@ uniform sampler2D image;
 uniform vec4 tint;
 uniform int mode;
 uniform float edge;
+uniform float distanceScale;
 uniform float time;
 uniform float strength;
+float textCoverage(vec2 sampleUV, float smoothing) {
+    return smoothstep(edge - smoothing, edge + smoothing, texture(image, sampleUV).r);
+}
 void main() {
     if (mode == 1) {
         fragmentColor = texture(image, uv) * tint;
     } else if (mode == 2) {
-        float distanceValue = texture(image, uv).r;
-        float smoothing = max(fwidth(distanceValue), 1.0 / 255.0);
-        float coverage = smoothstep(edge - smoothing, edge + smoothing, distanceValue);
+        vec2 atlasSize = vec2(textureSize(image, 0));
+        float footprint = max(length(dFdx(uv) * atlasSize), length(dFdy(uv) * atlasSize));
+        float smoothing = max(0.25 * footprint * distanceScale, 1.0 / 255.0);
+        vec2 sampleX = dFdx(uv) * 0.25;
+        vec2 sampleY = dFdy(uv) * 0.25;
+        float coverage = 0.25 * (textCoverage(uv - sampleX - sampleY, smoothing)
+                       + textCoverage(uv + sampleX - sampleY, smoothing)
+                       + textCoverage(uv - sampleX + sampleY, smoothing)
+                       + textCoverage(uv + sampleX + sampleY, smoothing));
         fragmentColor = vec4(tint.rgb, tint.a * coverage);
     } else if (mode == 3) {
         vec2 point = uv * 2.0 - 1.0;
@@ -108,6 +118,7 @@ bool GL33ExampleRenderer::Initialize() {
     m_colorLocation = glGetUniformLocation(m_program, "tint");
     m_modeLocation = glGetUniformLocation(m_program, "mode");
     m_edgeLocation = glGetUniformLocation(m_program, "edge");
+    m_distanceScaleLocation = glGetUniformLocation(m_program, "distanceScale");
     m_timeLocation = glGetUniformLocation(m_program, "time");
     m_strengthLocation = glGetUniformLocation(m_program, "strength");
     glUseProgram(m_program);
@@ -162,7 +173,7 @@ bool GL33ExampleRenderer::LoadFont(const FontAtlas& atlas, void* fontHandle) {
 void GL33ExampleRenderer::SetEffect(float time, float strength) {
     LAMBUI_LOGT(TAG, "SetEffect({}, {})", time, strength);
     m_time = time;
-    m_strength = std::clamp(strength, 0.0f, 1.0f);
+    m_strength = boost::algorithm::clamp(strength, 0.0f, 1.0f);
 }
 
 void GL33ExampleRenderer::BindPipeline() {
@@ -180,7 +191,8 @@ void GL33ExampleRenderer::BindPipeline() {
     glUniform2f(m_displayLocation, static_cast<float>(m_width), static_cast<float>(m_height));
 }
 
-void GL33ExampleRenderer::DrawQuad(const UIRenderCommand& command, int mode, GLuint texture, float edge) {
+void GL33ExampleRenderer::DrawQuad(const UIRenderCommand& command, int mode, GLuint texture,
+                                   float edge, float distanceScale) {
     if (m_width <= 0 || m_height <= 0 || m_framebufferWidth <= 0 || m_framebufferHeight <= 0) return;
     BindPipeline();
     const float left = command.x;
@@ -200,6 +212,7 @@ void GL33ExampleRenderer::DrawQuad(const UIRenderCommand& command, int mode, GLu
                 static_cast<float>(command.color & 255) / 255.0f);
     glUniform1i(m_modeLocation, mode);
     glUniform1f(m_edgeLocation, edge);
+    glUniform1f(m_distanceScaleLocation, distanceScale);
     glUniform1f(m_timeLocation, m_time);
     glUniform1f(m_strengthLocation, m_strength);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -210,7 +223,8 @@ void GL33ExampleRenderer::DrawString(const UIRenderCommand& command) {
     auto found = m_fonts.find(command.fontHandle);
     if (found == m_fonts.end()) found = m_fonts.find(nullptr);
     if (found == m_fonts.end()) return;
-    const auto& [atlas, texture] = found->second;
+    const auto* atlas = found->second.first;
+    const auto texture = found->second.second;
     float penX = command.x;
     for (unsigned char character : command.text) {
         const auto* glyph = atlas->FindGlyph(static_cast<char32_t>(character));
@@ -226,7 +240,8 @@ void GL33ExampleRenderer::DrawString(const UIRenderCommand& command) {
             quad.u1 = glyph->u1;
             quad.v1 = glyph->v1;
             quad.color = command.color;
-            DrawQuad(quad, 2, texture, atlas->GetOnEdgeValue() / 255.0f);
+            DrawQuad(quad, 2, texture, atlas->GetOnEdgeValue() / 255.0f,
+                     atlas->GetPixelDistanceScale() / 255.0f);
         }
         penX += glyph->advance;
     }

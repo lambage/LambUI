@@ -2,7 +2,8 @@
 
 #include <cstdint>
 #include <functional>
-#include <optional>
+#include <boost/optional.hpp>
+#include <boost/algorithm/clamp.hpp>
 #include <string>
 
 namespace LambUI {
@@ -77,7 +78,7 @@ inline const char* ToString(UIFillPattern pattern) {
 }
 
 struct UIStyle {
-    std::optional<uint32_t> fillColor;
+    boost::optional<uint32_t> fillColor;
     float cornerRadius = 0.0f;
     UIFillPattern pattern = UIFillPattern::Solid;
     uint32_t patternColor = 0xFFFFFFFFu;

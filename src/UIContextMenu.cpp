@@ -10,6 +10,8 @@ namespace LambUI {
 
 namespace { constexpr const char* TAG = "UIContextMenu"; }
 
+constexpr float UIContextMenu::RowHeight;
+
 UIContextMenu::UIContextMenu(UIManager& manager, std::string name)
     : UIScrollContainer(std::move(name)), m_manager(manager) {
     LAMBUI_LOGT(TAG, "constructed '{}'", GetName());
@@ -37,7 +39,11 @@ void UIContextMenu::SetItems(std::vector<UIMenuItem> items) {
         separator->SetMouseEnabled(false);
         separator->SetTint(0x606060FFu);
         separator->SetPoint(AnchorPoint::Left, button, AnchorPoint::Left, 6.0f, 0.0f);
-        m_rows.push_back({button, label, separator});
+        auto* arrow = button->CreateChild<UITextWidget>();
+        arrow->SetMouseEnabled(false);
+        arrow->SetText(">");
+        arrow->SetPoint(AnchorPoint::TopLeft, button, AnchorPoint::TopRight, -24.0f, 3.0f);
+        m_rows.push_back({button, label, separator, arrow});
     }
     for (size_t index = 0; index < m_rows.size(); ++index) {
         auto& row = m_rows[index];
@@ -53,6 +59,8 @@ void UIContextMenu::SetItems(std::vector<UIMenuItem> items) {
         row.label->SetColor(item.enabled ? 0xFFFFFFFFu : 0x909090FFu);
         row.label->SetVisible(!item.separator);
         row.separator->SetVisible(item.separator);
+        row.arrow->SetVisible(!item.separator && !item.children.empty());
+        row.arrow->SetColor(item.enabled ? 0xFFFFFFFFu : 0x909090FFu);
     }
     SetScrollOffset(0.0f, 0.0f);
 }
@@ -60,6 +68,12 @@ void UIContextMenu::SetItems(std::vector<UIMenuItem> items) {
 void UIContextMenu::Open(float x, float y, UIWidget* owner, bool allowOwnerInput) {
     LAMBUI_LOGT(TAG, "'{}' Open({}, {})", GetName(), x, y);
     if (m_items.empty()) return;
+    SizeToItems();
+    m_manager.ShowPopup(*this, x, y, owner, allowOwnerInput);
+}
+
+void UIContextMenu::SizeToItems() {
+    LAMBUI_LOGT(TAG, "'{}' SizeToItems", GetName());
     float width = 160.0f;
     for (const auto& item : m_items) {
         float textWidth = static_cast<float>(item.label.size()) * 8.0f;
@@ -67,10 +81,9 @@ void UIContextMenu::Open(float x, float y, UIWidget* owner, bool allowOwnerInput
         if (const auto* measurer = m_manager.GetTextMeasurer()) {
             measurer->MeasureText(item.label, nullptr, textWidth, textHeight);
         }
-        if (std::isfinite(textWidth)) width = std::max(width, textWidth + 12.0f);
+        if (std::isfinite(textWidth)) width = std::max(width, textWidth + (item.children.empty() ? 12.0f : 36.0f));
     }
     SetSize(width, static_cast<float>(m_items.size()) * RowHeight);
-    m_manager.ShowPopup(*this, x, y, owner, allowOwnerInput);
 }
 
 void UIContextMenu::Close() {
@@ -78,11 +91,57 @@ void UIContextMenu::Close() {
     if (IsOpen()) m_manager.ClosePopup();
 }
 
-bool UIContextMenu::IsOpen() const { return m_manager.GetActivePopup() == this; }
+bool UIContextMenu::IsOpen() const { return m_manager.IsPopupOpen(this); }
+
+void UIContextMenu::OpenSubmenu(size_t index, bool focus) {
+    LAMBUI_LOGT(TAG, "'{}' OpenSubmenu({}, focus={})", GetName(), index, focus);
+    if (!IsOpen() || index >= m_items.size()) return;
+    const auto& item = m_items[index];
+    if (!item.enabled || item.separator || item.children.empty()) {
+        m_manager.CloseSubmenus(*this);
+        return;
+    }
+    if (!m_submenu) m_submenu = m_manager.GetOverlayRoot().CreateChild<UIContextMenu>(m_manager, GetName() + "_Submenu");
+    if (!m_submenu->IsOpen() || m_submenuIndex != index) {
+        m_manager.CloseSubmenus(*this);
+        m_submenu->SetItems(item.children);
+        m_submenu->SizeToItems();
+        m_submenuIndex = index;
+    }
+    m_manager.ShowSubmenu(*m_submenu, *this, *m_rows[index].button, focus);
+}
+
+bool UIContextMenu::OpenFocusedSubmenu() {
+    LAMBUI_LOGT(TAG, "'{}' OpenFocusedSubmenu", GetName());
+    for (size_t index = 0; index < m_items.size(); ++index) {
+        if (m_rows[index].button == m_manager.GetFocusedWidget() && m_items[index].enabled &&
+            !m_items[index].separator && !m_items[index].children.empty()) {
+            OpenSubmenu(index, true);
+            return true;
+        }
+    }
+    return false;
+}
+
+void UIContextMenu::HoverRow(float x, float y) {
+    LAMBUI_LOGT(TAG, "'{}' HoverRow({}, {})", GetName(), x, y);
+    for (size_t index = 0; index < m_items.size(); ++index) {
+        const auto& rect = m_rows[index].button->GetComputedRect();
+        if (x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height) {
+            m_manager.SetFocusedWidget(m_items[index].enabled && !m_items[index].separator ? m_rows[index].button : nullptr);
+            OpenSubmenu(index, false);
+            return;
+        }
+    }
+}
 
 void UIContextMenu::Activate(size_t index) {
     if (index >= m_items.size() || !m_items[index].enabled || m_items[index].separator) return;
     LAMBUI_LOGT(TAG, "'{}' Activate({})", GetName(), index);
+    if (!m_items[index].children.empty()) {
+        OpenSubmenu(index, true);
+        return;
+    }
     auto action = m_items[index].action;
     Close();
     if (action) action();

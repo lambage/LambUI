@@ -61,6 +61,7 @@ bool FontAtlas::LoadFromFile(const std::string& ttfPath, int pixelHeight, int pa
     const uint8_t onEdgeValue = 180;
     const float pixelDistScale = static_cast<float>(onEdgeValue) / static_cast<float>(padding);
     m_onEdgeValue = onEdgeValue;
+    m_pixelDistanceScale = pixelDistScale;
 
     std::vector<RawGlyph> rawGlyphs;
     rawGlyphs.reserve(kLastChar - kFirstChar + 1);

@@ -1,6 +1,9 @@
 #pragma once
 
-#include <sol/sol.hpp>
+#include "lambui_lua_export.h"
+#include <memory>
+
+struct lua_State;
 
 namespace LambUI {
 class UIManager;
@@ -8,17 +11,18 @@ class UIManager;
 
 namespace LambUILua {
 
-// Registers the WoW-style `UI.CreateFrame(...)` / `UI.Root` API, bound to a
-// specific UIManager instance, into the given sol2 Lua state.
-class LuaUIBindings {
+namespace Detail { struct BindingState; }
+
+class LAMBUI_LUA_API LuaUIBindings {
 public:
-    LuaUIBindings(sol::state& lua, LambUI::UIManager& manager);
+    LuaUIBindings(lua_State* lua, LambUI::UIManager& manager);
+    ~LuaUIBindings();
+
+    LuaUIBindings(const LuaUIBindings&) = delete;
+    LuaUIBindings& operator=(const LuaUIBindings&) = delete;
 
 private:
-    void RegisterWidgetTypes(sol::state& lua);
-    void RegisterUITable(sol::state& lua);
-
-    LambUI::UIManager& m_manager;
+    std::shared_ptr<Detail::BindingState> m_state;
 };
 
 } // namespace LambUILua

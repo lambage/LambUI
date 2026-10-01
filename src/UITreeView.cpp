@@ -5,6 +5,10 @@ namespace LambUI {
 
 namespace { constexpr const char* TAG = "UITreeView"; }
 
+constexpr UITreeView::NodeId UITreeView::RootNode;
+constexpr float UITreeView::RowHeight;
+constexpr float UITreeView::Indent;
+
 UITreeView::UITreeView(std::string name) : UIScrollContainer(std::move(name)) {
     LAMBUI_LOGT(TAG, "constructed '{}'", GetName());
 }

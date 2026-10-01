@@ -22,6 +22,7 @@ void UIButton::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
         case ControlState::Pressed: color = m_pressedColor; break;
         default: break;
     }
+    if (IsKeyboardPressed()) color = m_pressedColor;
 
     const UIRect& rect = GetComputedRect();
     UIRenderCommand cmd;

@@ -1,6 +1,24 @@
 include(GenerateExportHeader)
 include(FetchContent)
 
+find_package(Boost 1.85 CONFIG QUIET COMPONENTS optional algorithm)
+if (NOT Boost_FOUND)
+    set(BOOST_INCLUDE_LIBRARIES optional algorithm)
+    set(BOOST_SKIP_INSTALL_RULES OFF)
+    if (POLICY CMP0135)
+        cmake_policy(SET CMP0135 NEW)
+    endif()
+    FetchContent_Declare(
+        Boost
+        URL https://github.com/boostorg/boost/releases/download/boost-1.86.0/boost-1.86.0-cmake.tar.xz
+        URL_HASH SHA256=2c5ec5edcdff47ff55e27ed9560b0a0b94b07bd07ed9928b476150e16b0efc57
+    )
+    FetchContent_MakeAvailable(Boost)
+    if (LAMBUI_INSTALL)
+        install(SCRIPT "${boost_BINARY_DIR}/cmake_install.cmake")
+    endif()
+endif()
+
 # Header-only; vendored purely for FontAtlas.cpp's SDF glyph baking (private
 # implementation detail - stb_truetype.h never appears in a public header).
 FetchContent_Declare(
@@ -49,9 +67,9 @@ add_library(lambui
 add_library(LambUI::lambui ALIAS lambui)
 
 target_include_directories(lambui PRIVATE ${stb_SOURCE_DIR})
-target_link_libraries(lambui PUBLIC fmt::fmt)
+target_link_libraries(lambui PUBLIC fmt::fmt Boost::optional Boost::algorithm)
 
-target_compile_features(lambui PUBLIC cxx_std_17)
+target_compile_features(lambui PUBLIC cxx_std_14)
 
 target_include_directories(lambui
     PUBLIC
