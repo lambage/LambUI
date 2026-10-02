@@ -37,6 +37,10 @@ bool FontAtlas::LoadFromFile(const std::string& ttfPath, int pixelHeight, int pa
     }
 
     const std::streamsize fileSize = file.tellg();
+    if (fileSize < 12) {
+        LAMBUI_LOGE(TAG, "font file is too small: {}", ttfPath);
+        return false;
+    }
     file.seekg(0, std::ios::beg);
     std::vector<unsigned char> fileData(static_cast<size_t>(fileSize));
     if (!file.read(reinterpret_cast<char*>(fileData.data()), fileSize)) {
@@ -44,8 +48,14 @@ bool FontAtlas::LoadFromFile(const std::string& ttfPath, int pixelHeight, int pa
         return false;
     }
 
+    const int fontOffset = stbtt_GetFontOffsetForIndex(fileData.data(), 0);
+    if (fontOffset < 0 || static_cast<size_t>(fontOffset) > fileData.size() - 12) {
+        LAMBUI_LOGE(TAG, "unsupported font data (check for Git LFS pointers): {}", ttfPath);
+        return false;
+    }
+
     stbtt_fontinfo font;
-    if (!stbtt_InitFont(&font, fileData.data(), stbtt_GetFontOffsetForIndex(fileData.data(), 0))) {
+    if (!stbtt_InitFont(&font, fileData.data(), fontOffset)) {
         LAMBUI_LOGE(TAG, "stbtt_InitFont failed to parse: {}", ttfPath);
         return false;
     }
