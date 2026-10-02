@@ -117,7 +117,7 @@ enum class Operation {
     GetText, SetFont, SetMouseEnabled, ClearPoints, GetRect, SetBackgroundColor,
     SetButtonColors, SetMultiline, SetWordWrap, SetEditingEnabled, SetChecked,
     IsChecked, GetContent, SetContentSize, SetScrollOffset, SetTooltip, SetProgressColors,
-    SetTitle, SetBounds, SetSizeLimits, SetMovable, SetResizable, GetWindowState,
+    SetTitle, SetBounds, SetSizeLimits, SetMovable, SetResizable, SetButtonMode, GetWindowState,
     Minimize, Maximize, Restore, Close, BringToFront, SetRenderCallback,
     CreateImage, SetSource, GetSource, IsLoaded, SetFit, GetFit, LoadImage, SetImage,
     SetOptions, SetSelectedIndex, GetSelectedIndex
@@ -177,6 +177,7 @@ const char* ToString(Operation operation) {
         case Operation::SetSizeLimits: return "SetSizeLimits";
         case Operation::SetMovable: return "SetMovable";
         case Operation::SetResizable: return "SetResizable";
+        case Operation::SetButtonMode: return "SetButtonMode";
         case Operation::GetWindowState: return "GetWindowState";
         case Operation::Minimize: return "Minimize";
         case Operation::Maximize: return "Maximize";
@@ -552,6 +553,22 @@ int Dispatch(lua_State* lua) {
         case Operation::SetSizeLimits: As<UIWindow>(self).SetSizeLimits(Number(lua, 2), Number(lua, 3), Number(lua, 4), Number(lua, 5)); break;
         case Operation::SetMovable: As<UIWindow>(self).SetMovable(Boolean(lua, 2)); break;
         case Operation::SetResizable: As<UIWindow>(self).SetResizable(Boolean(lua, 2)); break;
+        case Operation::SetButtonMode: {
+            const auto buttonName = String(lua, 2);
+            const auto modeName = String(lua, 3);
+            WindowButton button;
+            WindowButtonMode mode;
+            if (buttonName == "Minimize") button = WindowButton::Minimize;
+            else if (buttonName == "Maximize") button = WindowButton::Maximize;
+            else if (buttonName == "Close") button = WindowButton::Close;
+            else throw std::invalid_argument("LambUI: unknown window button '" + buttonName + "'");
+            if (modeName == "Enabled") mode = WindowButtonMode::Enabled;
+            else if (modeName == "Disabled") mode = WindowButtonMode::Disabled;
+            else if (modeName == "Hidden") mode = WindowButtonMode::Hidden;
+            else throw std::invalid_argument("LambUI: unknown window button mode '" + modeName + "'");
+            As<UIWindow>(self).SetButtonMode(button, mode);
+            break;
+        }
         case Operation::GetWindowState: lua_pushstring(lua, ToString(As<UIWindow>(self).GetWindowState())); return 1;
         case Operation::Minimize: As<UIWindow>(self).Minimize(); break;
         case Operation::Maximize: As<UIWindow>(self).Maximize(); break;
@@ -643,7 +660,7 @@ LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager, UIWidget* root)
             Operation::SetOptions, Operation::SetSelectedIndex, Operation::GetSelectedIndex,
             Operation::SetContentSize, Operation::SetScrollOffset, Operation::SetTooltip, Operation::SetProgressColors,
             Operation::SetTitle, Operation::SetBounds, Operation::SetSizeLimits, Operation::SetMovable,
-            Operation::SetResizable, Operation::GetWindowState, Operation::Minimize, Operation::Maximize,
+            Operation::SetResizable, Operation::SetButtonMode, Operation::GetWindowState, Operation::Minimize, Operation::Maximize,
             Operation::Restore, Operation::Close, Operation::BringToFront, Operation::SetRenderCallback,
             Operation::CreateImage, Operation::SetSource, Operation::GetSource,
             Operation::IsLoaded, Operation::SetFit, Operation::GetFit, Operation::SetImage
