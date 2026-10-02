@@ -29,6 +29,16 @@ UIRect AnchorFractions(AnchorPoint point) {
     return ResolveAnchoredRect({{AnchorPoint::TopLeft, {0, 0, 1, 1}, point}}, 0, 0, {});
 }
 
+} // namespace
+
+void UIWidget::DestroyChildren() {
+    LAMBUI_LOGT(TAG, "DestroyChildren: {} children removed from '{}'", m_children.size(), m_name);
+    m_children.clear();
+    MarkDirty();
+}
+
+namespace {
+
 void AppendStyledFill(std::vector<UIRenderCommand>& bucket, const UIRenderCommand& source,
                       float radius, UIFillPattern pattern, uint32_t patternColor, float patternSize) {
     if (source.width <= 0 || source.height <= 0) return;

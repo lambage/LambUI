@@ -42,6 +42,11 @@ public:
         return raw;
     }
 
+    // Destroys all children immediately (e.g. before rebuilding a Lua-scripted
+    // UI subtree on hot-reload). Dangling raw pointers to destroyed children
+    // held elsewhere (anchors, focus, hover) are the caller's responsibility.
+    void DestroyChildren();
+
     // --- Layout (WoW-style point-and-anchor system) ---
     void SetPoint(AnchorPoint myPoint, UIWidget* relativeTo, AnchorPoint relativePoint,
                   float xOffset = 0.0f, float yOffset = 0.0f);

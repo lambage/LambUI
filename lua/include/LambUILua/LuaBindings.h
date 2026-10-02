@@ -7,6 +7,7 @@ struct lua_State;
 
 namespace LambUI {
 class UIManager;
+class UIWidget;
 }
 
 namespace LambUILua {
@@ -15,7 +16,10 @@ namespace Detail { struct BindingState; }
 
 class LAMBUI_LUA_API LuaUIBindings {
 public:
-    LuaUIBindings(lua_State* lua, LambUI::UIManager& manager);
+    // root defaults to manager.GetRoot(); pass a scene-owned widget to scope
+    // UI.Root/CreateFrame's default parent to that subtree instead (e.g. so a
+    // per-scene reload can DestroyChildren() on just that subtree).
+    LuaUIBindings(lua_State* lua, LambUI::UIManager& manager, LambUI::UIWidget* root = nullptr);
     ~LuaUIBindings();
 
     LuaUIBindings(const LuaUIBindings&) = delete;

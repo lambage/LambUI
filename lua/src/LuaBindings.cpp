@@ -25,10 +25,12 @@ namespace LambUILua { namespace Detail {
 struct BindingState {
     lua_State* lua;
     UIManager& manager;
+    UIWidget& root;
     bool active = true;
     std::unordered_set<int> references;
 
-    BindingState(lua_State* state, UIManager& owner) : lua(state), manager(owner) {
+    BindingState(lua_State* state, UIManager& owner, UIWidget& rootWidget)
+        : lua(state), manager(owner), root(rootWidget) {
         LAMBUI_LOGT(TAG, "Construct binding state");
     }
 
@@ -254,7 +256,7 @@ int Dispatch(lua_State* lua) {
     if (operation == Operation::CreateFrame) {
         const auto type = String(lua, 1);
         const auto name = lua_isnoneornil(lua, 2) ? std::string{} : String(lua, 2);
-        auto& parent = lua_isnoneornil(lua, 3) ? owner->manager.GetRoot() : Widget(lua, 3, *owner);
+        auto& parent = lua_isnoneornil(lua, 3) ? owner->root : Widget(lua, 3, *owner);
         UIWidget* result = nullptr;
         if (type == "Frame") result = parent.CreateChild<UIWidget>(name);
         else if (type == "Button") result = parent.CreateChild<UIButton>(name);
@@ -465,9 +467,10 @@ void PushOperation(lua_State* lua, Operation operation, int rootIndex) {
 
 namespace LambUILua {
 
-LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager) {
+LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager, UIWidget* root) {
     LAMBUI_LOGT(TAG, "Construct");
     if (!lua) throw std::invalid_argument("LambUI: Lua state must not be null");
+    UIWidget& rootWidget = root ? *root : manager.GetRoot();
     const int top = lua_gettop(lua);
     const bool mainThread = lua_pushthread(lua) != 0;
     lua_pop(lua, 1);
@@ -479,7 +482,7 @@ LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager) {
     lua_pop(lua, 1);
     if (alreadyBound) throw std::invalid_argument("LambUI: Lua state already has a binding");
 
-    m_state = std::make_shared<Detail::BindingState>(lua, manager);
+    m_state = std::make_shared<Detail::BindingState>(lua, manager, rootWidget);
     try {
         luaL_newmetatable(lua, WidgetMetatable);
         lua_pushcfunction(lua, ReleaseWidget);
@@ -487,7 +490,7 @@ LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager) {
         lua_pushliteral(lua, "LambUI widget");
         lua_setfield(lua, -2, "__metatable");
 
-        PushWidget(lua, &manager.GetRoot(), m_state);
+        PushWidget(lua, &rootWidget, m_state);
         const int rootIndex = lua_gettop(lua);
         lua_pushvalue(lua, rootIndex);
         lua_rawsetp(lua, LUA_REGISTRYINDEX, &BindingRegistryKey);
