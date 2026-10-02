@@ -30,6 +30,7 @@ option(LAMBUI_INSTALL "Generate install/export targets for LambUI" ${LAMBUI_IS_T
 option(LAMBUI_USE_BOOST "Use boost::optional/boost::algorithm::clamp instead of std::optional + an internal clamp helper" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(LambUIDeps)
 
 add_subdirectory(src)
 

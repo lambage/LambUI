@@ -1,45 +1,26 @@
 include(GenerateExportHeader)
-include(FetchContent)
 
 if (LAMBUI_USE_BOOST)
     find_package(Boost 1.85 CONFIG QUIET COMPONENTS optional algorithm)
     if (NOT Boost_FOUND)
+        # Not in lambui.xml (Boost is opt-in); expects a boostorg/boost checkout
+        # with submodules at ${LAMBUI_DEPS_DIR}/boost.
         set(BOOST_INCLUDE_LIBRARIES optional algorithm)
         set(BOOST_SKIP_INSTALL_RULES OFF)
-        if (POLICY CMP0135)
-            cmake_policy(SET CMP0135 NEW)
-        endif()
-        FetchContent_Declare(
-            Boost
-            URL https://github.com/boostorg/boost/releases/download/boost-1.86.0/boost-1.86.0-cmake.tar.xz
-            URL_HASH SHA256=2c5ec5edcdff47ff55e27ed9560b0a0b94b07bd07ed9928b476150e16b0efc57
-        )
-        FetchContent_MakeAvailable(Boost)
+        lambui_add_dependency(boost TARGET Boost::optional)
         if (LAMBUI_INSTALL)
-            install(SCRIPT "${boost_BINARY_DIR}/cmake_install.cmake")
+            install(SCRIPT "${CMAKE_BINARY_DIR}/_deps/boost-build/cmake_install.cmake")
         endif()
     endif()
 endif()
 
 # Header-only; vendored purely for FontAtlas.cpp's SDF glyph baking (private
 # implementation detail - stb_truetype.h never appears in a public header).
-FetchContent_Declare(
-    stb
-    GIT_REPOSITORY https://github.com/nothings/stb.git
-    GIT_TAG master
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(stb)
+lambui_add_dependency(stb NO_ADD_SUBDIRECTORY)
 
 # Public dependency: UILog.h's Writef() template exposes fmt::format_string,
 # so consumers including LambUI headers need fmt on their include path too.
-FetchContent_Declare(
-    fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG 10.2.1
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(fmt)
+lambui_add_dependency(fmt TARGET fmt::fmt)
 
 add_library(lambui
     UILayoutSolver.cpp

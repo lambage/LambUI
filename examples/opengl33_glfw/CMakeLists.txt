@@ -1,24 +1,13 @@
-include(FetchContent)
-
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw.git
-    GIT_TAG 3.4
-)
-FetchContent_MakeAvailable(glfw)
+lambui_add_dependency(glfw TARGET glfw)
 
 enable_language(C)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-FetchContent_Declare(glad
-    GIT_REPOSITORY https://github.com/Dav1dde/glad.git
-    GIT_TAG v0.1.36
-    GIT_SHALLOW TRUE
-    SOURCE_SUBDIR lambui-loader-only
-)
-FetchContent_MakeAvailable(glad)
+# Only the glad generator is used; its own CMakeLists.txt isn't added.
+lambui_add_dependency(glad NO_ADD_SUBDIRECTORY)
 
 set(loader_dir "${CMAKE_CURRENT_BINARY_DIR}/glad")
 add_custom_command(

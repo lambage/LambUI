@@ -1,23 +1,23 @@
-include(FetchContent)
-
 if (NOT TARGET Lua::Library)
     find_package(Lua 5.3 QUIET)
 endif()
 
 if (NOT Lua_FOUND AND NOT TARGET Lua::Library)
-    if (CMAKE_VERSION VERSION_GREATER_EQUAL 4.0 AND
-        (NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM OR CMAKE_POLICY_VERSION_MINIMUM VERSION_LESS 3.5))
-        set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-    endif()
-    set(LUA_BUILD_BINARY OFF CACHE BOOL "" FORCE)
-    set(LUA_BUILD_COMPILER OFF CACHE BOOL "" FORCE)
-    set(LUA_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-    FetchContent_Declare(
-        lua
-        GIT_REPOSITORY https://github.com/walterschell/Lua.git
-        GIT_TAG v5.4.6
+    # Upstream lua/lua has no CMake build, so compile the core library here.
+    enable_language(C)
+    lambui_add_dependency(lua NO_ADD_SUBDIRECTORY)
+    file(GLOB lambui_lua_core_sources "${lua_SOURCE_DIR}/*.c")
+    list(REMOVE_ITEM lambui_lua_core_sources
+        "${lua_SOURCE_DIR}/lua.c"
+        "${lua_SOURCE_DIR}/luac.c"
+        "${lua_SOURCE_DIR}/onelua.c"
     )
-    FetchContent_MakeAvailable(lua)
+    add_library(lambui_lua_core STATIC ${lambui_lua_core_sources})
+    target_include_directories(lambui_lua_core PUBLIC "${lua_SOURCE_DIR}")
+    if (UNIX)
+        target_link_libraries(lambui_lua_core PRIVATE m ${CMAKE_DL_LIBS})
+    endif()
+    add_library(Lua::Library ALIAS lambui_lua_core)
 endif()
 
 add_library(lambui_lua
