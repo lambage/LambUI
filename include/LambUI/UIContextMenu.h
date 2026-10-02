@@ -22,6 +22,7 @@ class LAMBUI_API UIContextMenu : public UIScrollContainer {
 public:
     explicit UIContextMenu(UIManager& manager, std::string name = {});
     void SetItems(std::vector<UIMenuItem> items);
+    void SetFont(void* fontHandle);
     const std::vector<UIMenuItem>& GetItems() const { return m_items; }
     void Open(float x, float y, UIWidget* owner = nullptr, bool allowOwnerInput = false);
     void Close();
@@ -44,6 +45,7 @@ private:
     std::vector<UIMenuItem> m_items;
     std::vector<Row> m_rows;
     UIContextMenu* m_submenu = nullptr;
+    void* m_fontHandle = nullptr;
     size_t m_submenuIndex = static_cast<size_t>(-1);
     static constexpr float RowHeight = 24.0f;
 };

@@ -30,6 +30,13 @@ void UIDropDownBox::SetOptions(std::vector<std::string> options) {
     RebuildOptionButtons();
 }
 
+void UIDropDownBox::SetFont(void* fontHandle) {
+    m_fontHandle = fontHandle;
+    if (m_popup) m_popup->SetFont(fontHandle);
+    for (auto* label : m_optionLabels) label->SetFont(fontHandle);
+    MarkDirty();
+}
+
 void UIDropDownBox::SetSelectedIndex(int index) {
     if (index < 0 || index >= static_cast<int>(m_options.size())) return;
     LAMBUI_LOGT(TAG, "'{}' SetSelectedIndex({} -> {})", GetName(), m_selectedIndex, index);
@@ -118,6 +125,7 @@ void UIDropDownBox::RebuildOptionButtons() {
             items.push_back({m_options[index], [this, index]() { SetSelectedIndex(static_cast<int>(index)); }});
         }
         m_popup->SetItems(std::move(items));
+        m_popup->SetFont(m_fontHandle);
         MarkDirty();
         return;
     }
@@ -141,6 +149,7 @@ void UIDropDownBox::RebuildOptionButtons() {
             m_optionButtons.push_back(option);
         }
         m_optionLabels[optionIndex]->SetText(m_options[optionIndex]);
+        m_optionLabels[optionIndex]->SetFont(m_fontHandle);
         option->ClearPoints();
 
         // Anchor to the previous option (or this box for the first one) so the
@@ -218,6 +227,7 @@ void UIDropDownBox::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucke
     label.y = rect.y + 4.0f;
     label.color = 0xFFFFFFFFu;
     label.text = GetSelectedOption();
+    label.fontHandle = m_fontHandle;
     bucket.push_back(label);
     clip.type = RenderCommandType::PopScissor;
     bucket.push_back(clip);

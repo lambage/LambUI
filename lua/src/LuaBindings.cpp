@@ -503,6 +503,7 @@ int Dispatch(lua_State* lua) {
                 handle = reinterpret_cast<void*>(static_cast<uintptr_t>(Integer(lua, 2)));
             }
             if (auto* input = dynamic_cast<UIInputBox*>(&self)) input->SetFont(handle);
+            else if (auto* dropdown = dynamic_cast<UIDropDownBox*>(&self)) dropdown->SetFont(handle);
             else As<UITextWidget>(self).SetFont(handle);
             break;
         }

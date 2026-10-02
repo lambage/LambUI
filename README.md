@@ -1085,6 +1085,9 @@ available. `StatusBar` retains its historical slider behavior; the new
 - CheckBox: `SetText`, `GetText`, `SetChecked`, `IsChecked`.
 - DropDownBox: `SetOptions({"First", "Second"})`, `SetSelectedIndex(index)`,
   `GetSelectedIndex()`. Lua indices are one-based; an empty list returns zero.
+  `SetFont(integerHandle)` or `SetFont("Inter-Bold", 20)` applies to the selected
+  value and all option labels, including options replaced later. Named fonts
+  use the same host resolver and optional size as Text/EditBox.
   Selection changes fire `OnValueChanged`, including programmatic selections.
   Lists use a scrollable overlay outside parent clipping, opening above the
   control when necessary. C++ callers can opt into this behavior with the

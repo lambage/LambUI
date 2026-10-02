@@ -122,6 +122,50 @@ TEST_F(LuaBindingsTest, DropdownSelectionUsesOneBasedIndicesAndValidatesArgument
     EXPECT_EQ(lua_gettop(lua.get()), 0);
 }
 
+TEST_F(LuaBindingsTest, DropdownFontsApplyToSelectionAndPopupOptions) {
+    bindings->SetFontResolver([](const std::string& name, int size) -> void* {
+        return name == "Body" && size == 20 ? reinterpret_cast<void*>(uintptr_t{123}) : nullptr;
+    });
+    ASSERT_TRUE(Run(R"lua(
+        dropdown = UI.CreateFrame("DropDownBox", "Choice")
+        dropdown:SetSize(160, 28)
+        dropdown:SetPoint("TOPLEFT", UI.Root, "TOPLEFT", 20, 20)
+        dropdown:SetFont("Body", 20)
+        dropdown:SetOptions({"First", "Second"})
+    )lua"));
+    const auto expectFonts = [&](uintptr_t handle, int expectedCount) {
+        manager.Update(0);
+        manager.Render();
+        int count = 0;
+        for (const auto& command : renderer->commands) {
+            if (command.type == RenderCommandType::DrawString && !command.text.empty()) {
+                ++count;
+                EXPECT_EQ(command.fontHandle, reinterpret_cast<void*>(handle));
+            }
+        }
+        EXPECT_EQ(count, expectedCount);
+    };
+    const auto openPopup = [&]() {
+        manager.InjectMouseMove(30, 30);
+        manager.InjectMouseButton(MouseButton::Left, true);
+        manager.InjectMouseButton(MouseButton::Left, false);
+    };
+    expectFonts(123, 1);
+    openPopup();
+    expectFonts(123, 3);
+    ASSERT_TRUE(Run("dropdown:SetFont(456)"));
+    expectFonts(456, 3);
+    ASSERT_TRUE(Run(R"lua(
+        assert(not pcall(function() dropdown:SetFont("Missing", 20) end))
+        assert(not pcall(function() dropdown:SetFont("Body", 0) end))
+        dropdown:SetOptions({"Third", "Fourth", "Fifth"})
+    )lua"));
+    expectFonts(456, 1);
+    openPopup();
+    expectFonts(456, 4);
+    EXPECT_EQ(lua_gettop(lua.get()), 0);
+}
+
 TEST_F(LuaBindingsTest, DropdownPopupEscapesParentClipScrollsAndDismisses) {
     ASSERT_TRUE(Run(R"lua(
         page = UI.CreateFrame("ScrollContainer", "Page")

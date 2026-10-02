@@ -1169,16 +1169,28 @@ protected:
 }
 
 TEST_F(CompoundWidgets, DropdownRendersLabelsAndReusesOnlyCurrentOptions) {
+    float font = 8.0f;
     auto* dropdown = manager.GetRoot().CreateChild<UIDropDownBox>();
     dropdown->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft);
     dropdown->SetSize(160, 28);
+    dropdown->SetFont(&font);
     dropdown->SetOptions({"Draft", "Final", "Old"});
     dropdown->Toggle();
     manager.Update(0);
     manager.Render();
     std::vector<std::string> labels;
-    for (const auto& command : renderer->bucket) if (command.type == RenderCommandType::DrawString) labels.push_back(command.text);
+    for (const auto& command : renderer->bucket) {
+        if (command.type != RenderCommandType::DrawString) continue;
+        labels.push_back(command.text);
+        EXPECT_EQ(command.fontHandle, &font);
+    }
     EXPECT_EQ(labels, (std::vector<std::string>{"Draft", "Draft", "Final", "Old"}));
+    dropdown->SetFont(nullptr);
+    manager.Update(0);
+    manager.Render();
+    for (const auto& command : renderer->bucket) {
+        if (command.type == RenderCommandType::DrawString) EXPECT_EQ(command.fontHandle, nullptr);
+    }
     dropdown->SetOptions({"New"});
     EXPECT_FALSE(dropdown->IsExpanded());
     dropdown->Toggle();

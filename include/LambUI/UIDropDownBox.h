@@ -20,6 +20,7 @@ public:
     explicit UIDropDownBox(UIManager& manager, std::string name = {});
 
     void SetOptions(std::vector<std::string> options);
+    void SetFont(void* fontHandle);
     void SetSelectedIndex(int index);
     int GetSelectedIndex() const { return m_selectedIndex; }
     const std::string& GetSelectedOption() const;
@@ -39,6 +40,7 @@ private:
     std::vector<std::string> m_options;
     UIManager* m_manager = nullptr;
     UIContextMenu* m_popup = nullptr;
+    void* m_fontHandle = nullptr;
     int m_selectedIndex = -1;
     bool m_isExpanded = false;
     std::vector<UIButton*> m_optionButtons; // owned by the widget tree (children)

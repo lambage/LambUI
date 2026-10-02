@@ -56,13 +56,25 @@ void UIContextMenu::SetItems(std::vector<UIMenuItem> items) {
         row.button->SetHoverColor(0x606060FFu);
         row.button->SetPressedColor(0x505050FFu);
         row.label->SetText(item.label);
+        row.label->SetFont(m_fontHandle);
         row.label->SetColor(item.enabled ? 0xFFFFFFFFu : 0x909090FFu);
         row.label->SetVisible(!item.separator);
         row.separator->SetVisible(item.separator);
         row.arrow->SetVisible(!item.separator && !item.children.empty());
+        row.arrow->SetFont(m_fontHandle);
         row.arrow->SetColor(item.enabled ? 0xFFFFFFFFu : 0x909090FFu);
     }
     SetScrollOffset(0.0f, 0.0f);
+}
+
+void UIContextMenu::SetFont(void* fontHandle) {
+    m_fontHandle = fontHandle;
+    for (const auto& row : m_rows) {
+        row.label->SetFont(fontHandle);
+        row.arrow->SetFont(fontHandle);
+    }
+    if (m_submenu) m_submenu->SetFont(fontHandle);
+    MarkDirty();
 }
 
 void UIContextMenu::Open(float x, float y, UIWidget* owner, bool allowOwnerInput) {
@@ -79,7 +91,7 @@ void UIContextMenu::SizeToItems() {
         float textWidth = static_cast<float>(item.label.size()) * 8.0f;
         float textHeight = 0.0f;
         if (const auto* measurer = m_manager.GetTextMeasurer()) {
-            measurer->MeasureText(item.label, nullptr, textWidth, textHeight);
+            measurer->MeasureText(item.label, m_fontHandle, textWidth, textHeight);
         }
         if (std::isfinite(textWidth)) width = std::max(width, textWidth + (item.children.empty() ? 12.0f : 36.0f));
     }
@@ -105,6 +117,7 @@ void UIContextMenu::OpenSubmenu(size_t index, bool focus) {
     if (!m_submenu->IsOpen() || m_submenuIndex != index) {
         m_manager.CloseSubmenus(*this);
         m_submenu->SetItems(item.children);
+        m_submenu->SetFont(m_fontHandle);
         m_submenu->SizeToItems();
         m_submenuIndex = index;
     }
