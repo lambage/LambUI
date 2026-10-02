@@ -158,6 +158,36 @@ local loaded = image:SetSource("assets/artwork.png")
 `COVER`, and `STRETCH`. Use `UITextureWidget` when the host already provides a
 raw texture handle, or `UICanvasWidget` for custom rendering callbacks.
 
+Preload button artwork once with `UI.LoadImage(path)`, then swap the returned
+opaque image handles directly on a single button:
+
+```lua
+local normalImage = assert(UI.LoadImage("assets/button.png"))
+local hoverImage = assert(UI.LoadImage("assets/button_hover.png"))
+local button = UI.CreateFrame("Button", "Action")
+button:SetSize(260, 110)
+button:SetPoint("CENTER", UI.Root, "CENTER", 0, 0)
+button:SetButtonColors(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)
+assert(button:SetImage(normalImage))
+button:SetScript("OnEnter", function()
+  assert(button:SetImage(hoverImage))
+end)
+button:SetScript("OnLeave", function()
+  assert(button:SetImage(normalImage))
+end)
+```
+
+`UI.LoadImage` uses the current binding's host loader and returns `nil` for
+an empty source, absent loader, or invalid image. Loader exceptions become Lua
+errors. `button:SetImage` returns `true` and changes only the texture handle;
+it does not load or upload a texture, resize the button, or change its colors.
+Artwork stretches to the button bounds and is multiplied by its state color;
+use white state colors to preserve the original artwork. Handles can be shared
+between buttons within the same binding, but cannot be used after that binding
+expires. Invalid handle arguments raise Lua errors. The host retains ownership
+of the textures and must keep them valid while assigned to widgets, even if
+the Lua image handle has been garbage-collected.
+
 ### Event bubbling
 
 `UIWidget::FireEvent` dispatches to the target, then its logical parents up to

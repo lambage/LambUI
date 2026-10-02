@@ -30,7 +30,8 @@ public:
 class LuaBindingsTest : public testing::Test {
 protected:
     std::unique_ptr<lua_State, decltype(&lua_close)> lua{luaL_newstate(), lua_close};
-    UIManager manager{nullptr};
+    std::shared_ptr<LuaCanvasRenderer> renderer = std::make_shared<LuaCanvasRenderer>();
+    UIManager manager{renderer};
     std::unique_ptr<LambUILua::LuaUIBindings> bindings;
 
     LuaBindingsTest() { LAMBUI_LOGT(TAG, "Construct"); }
@@ -126,6 +127,99 @@ TEST_F(LuaBindingsTest, ImageWidgetsUseHostLoaderAndValidateFit) {
         assert(UI.Root:CreateImage():GetName() == "")
     )lua"));
     EXPECT_EQ(loads, 3);
+    EXPECT_EQ(lua_gettop(lua.get()), 0);
+}
+
+TEST_F(LuaBindingsTest, ImageButtonSwapsPreloadedImagesInCallbacks) {
+    int normalTexture = 0;
+    int hoverTexture = 0;
+    int loads = 0;
+    bindings->SetImageLoader([&](const std::string& source) {
+        ++loads;
+        return UIImage{source == "normal.png" ? &normalTexture : &hoverTexture, 260, 110};
+    });
+    ASSERT_TRUE(Run(R"lua(
+        clicks = 0
+        enters, leaves = 0, 0
+        normalImage = assert(UI.LoadImage("normal.png"))
+        hoverImage = assert(UI.LoadImage("hover.png"))
+        button = UI.CreateFrame("Button", "ImageButton")
+        button:SetSize(260, 110)
+        button:SetPoint("CENTER", UI.Root, "CENTER", 0, 0)
+        button:SetButtonColors(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)
+        assert(button:SetImage(normalImage))
+        button:SetScript("OnEnter", function()
+            assert(button:SetImage(hoverImage))
+            enters = enters + 1
+        end)
+        button:SetScript("OnLeave", function()
+            assert(button:SetImage(normalImage))
+            leaves = leaves + 1
+        end)
+        button:SetScript("OnClick", function() clicks = clicks + 1 end)
+    )lua"));
+    const auto expectTexture = [&](void* texture) {
+        manager.Render();
+        int texturedQuads = 0;
+        for (const auto& command : renderer->commands) {
+            if (command.type != RenderCommandType::DrawQuad || !command.textureHandle) continue;
+            ++texturedQuads;
+            EXPECT_EQ(command.textureHandle, texture);
+            EXPECT_EQ(command.color, 0xFFFFFFFFu);
+        }
+        EXPECT_EQ(texturedQuads, 1);
+    };
+    manager.Update(0);
+    expectTexture(&normalTexture);
+    manager.InjectMouseMove(200, 150);
+    ASSERT_TRUE(Run("assert(enters == 1)"));
+    manager.Update(0);
+    expectTexture(&hoverTexture);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    ASSERT_TRUE(Run("assert(clicks == 1)"));
+    manager.InjectMouseMove(0, 0);
+    ASSERT_TRUE(Run("assert(leaves == 1)"));
+    ASSERT_TRUE(Run("normalImage, hoverImage = nil, nil; collectgarbage('collect')"));
+    manager.Update(0);
+    expectTexture(&normalTexture);
+    EXPECT_EQ(loads, 2);
+}
+
+TEST_F(LuaBindingsTest, PreloadedImagesValidateLoadsTypesAndBindingLifetime) {
+    ASSERT_TRUE(Run("assert(UI.LoadImage('missing.png') == nil)"));
+    int texture = 0;
+    bindings->SetImageLoader([&](const std::string& source) {
+        if (source == "valid.png") return UIImage{&texture, 260, 110};
+        if (source == "invalid.png") return UIImage{&texture, 0, 110};
+        if (source == "throws.png") throw std::runtime_error("load failed");
+        return UIImage{};
+    });
+    ASSERT_TRUE(Run(R"lua(
+        assert(UI.LoadImage("") == nil)
+        assert(UI.LoadImage("missing.png") == nil)
+        assert(UI.LoadImage("invalid.png") == nil)
+        assert(not pcall(function() UI.LoadImage(42) end))
+        assert(not pcall(function() UI.LoadImage("throws.png") end))
+        image = assert(UI.LoadImage("valid.png"))
+        button = UI.CreateFrame("Button")
+        assert(not pcall(function() button:SetImage(nil) end))
+        assert(not pcall(function() button:SetImage(123) end))
+        assert(not pcall(function() button:SetImage({}) end))
+        assert(not pcall(function() button:SetImage(button) end))
+        assert(not pcall(function() UI.Root:SetImage(image) end))
+        assert(button:SetImage(image))
+        assert(UI.CreateFrame("Button"):SetImage(image))
+    )lua"));
+    manager.Clear();
+    bindings.reset();
+    bindings = std::make_unique<LambUILua::LuaUIBindings>(lua.get(), manager);
+    ASSERT_TRUE(Run(R"lua(
+        button = UI.CreateFrame("Button")
+        assert(not pcall(function() button:SetImage(image) end))
+        image = nil
+        collectgarbage("collect")
+    )lua"));
     EXPECT_EQ(lua_gettop(lua.get()), 0);
 }
 

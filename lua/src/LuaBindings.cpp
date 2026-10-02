@@ -17,6 +17,7 @@ using namespace LambUI;
 namespace {
 constexpr const char* TAG = "LuaUIBindings";
 constexpr const char* WidgetMetatable = "LambUI.Widget";
+constexpr const char* ImageMetatable = "LambUI.Image";
 char BindingRegistryKey;
 }
 
@@ -56,6 +57,11 @@ using BindingState = LambUILua::Detail::BindingState;
 
 struct WidgetHandle {
     UIWidget* widget;
+    std::weak_ptr<BindingState> state;
+};
+
+struct ImageHandle {
+    UIImage image;
     std::weak_ptr<BindingState> state;
 };
 
@@ -112,7 +118,7 @@ enum class Operation {
     IsChecked, GetContent, SetContentSize, SetScrollOffset, SetTooltip, SetProgressColors,
     SetTitle, SetBounds, SetSizeLimits, SetMovable, SetResizable, GetWindowState,
     Minimize, Maximize, Restore, Close, BringToFront, SetRenderCallback,
-    CreateImage, SetSource, GetSource, IsLoaded, SetFit, GetFit
+    CreateImage, SetSource, GetSource, IsLoaded, SetFit, GetFit, LoadImage, SetImage
 };
 
 const char* ToString(Operation operation) {
@@ -127,6 +133,8 @@ const char* ToString(Operation operation) {
         case Operation::RegisterEvent: return "RegisterEvent";
         case Operation::CreateTexture: return "CreateTexture";
         case Operation::CreateImage: return "CreateImage";
+        case Operation::LoadImage: return "LoadImage";
+        case Operation::SetImage: return "SetImage";
         case Operation::SetSource: return "SetSource";
         case Operation::GetSource: return "GetSource";
         case Operation::IsLoaded: return "IsLoaded";
@@ -255,11 +263,30 @@ int ReleaseWidget(lua_State* lua) {
     return 0;
 }
 
+int ReleaseImage(lua_State* lua) {
+    auto* handle = static_cast<ImageHandle*>(lua_touserdata(lua, 1));
+    handle->~ImageHandle();
+    return 0;
+}
+
 int Dispatch(lua_State* lua) {
     const auto operation = static_cast<Operation>(lua_tointeger(lua, lua_upvalueindex(1)));
     auto owner = Handle(lua, lua_upvalueindex(2)).state.lock();
     if (!owner || !owner->active) throw std::invalid_argument("LambUI: binding has expired");
     LAMBUI_LOGT(TAG, "Lua {}", ToString(operation));
+
+    if (operation == Operation::LoadImage) {
+        const auto source = String(lua, 1);
+        const auto image = !source.empty() && owner->imageLoader ? owner->imageLoader(source) : UIImage{};
+        if (!image.textureHandle || image.width <= 0 || image.height <= 0) {
+            lua_pushnil(lua);
+        } else {
+            auto* memory = lua_newuserdata(lua, sizeof(ImageHandle));
+            new (memory) ImageHandle{image, owner};
+            luaL_setmetatable(lua, ImageMetatable);
+        }
+        return 1;
+    }
 
     if (operation == Operation::CreateFrame) {
         const auto type = String(lua, 1);
@@ -332,6 +359,17 @@ int Dispatch(lua_State* lua) {
         case Operation::SetSource:
             lua_pushboolean(lua, As<UIImageWidget>(self).SetSource(String(lua, 2)));
             return 1;
+        case Operation::SetImage: {
+            auto& button = As<UIButton>(self);
+            auto* handle = static_cast<ImageHandle*>(luaL_testudata(lua, 2, ImageMetatable));
+            if (!handle) throw std::invalid_argument("LambUI: expected a loaded image");
+            auto state = handle->state.lock();
+            if (!state || !state->active || state.get() != owner.get())
+                throw std::invalid_argument("LambUI: image binding has expired or belongs to another manager");
+            button.SetTexture(handle->image.textureHandle);
+            lua_pushboolean(lua, true);
+            return 1;
+        }
         case Operation::GetSource: {
             const auto& source = As<UIImageWidget>(self).GetSource();
             lua_pushlstring(lua, source.data(), source.size());
@@ -529,6 +567,13 @@ LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager, UIWidget* root)
 
     m_state = std::make_shared<Detail::BindingState>(lua, manager, rootWidget);
     try {
+        luaL_newmetatable(lua, ImageMetatable);
+        lua_pushcfunction(lua, ReleaseImage);
+        lua_setfield(lua, -2, "__gc");
+        lua_pushliteral(lua, "LambUI image");
+        lua_setfield(lua, -2, "__metatable");
+        lua_pop(lua, 1);
+
         luaL_newmetatable(lua, WidgetMetatable);
         lua_pushcfunction(lua, ReleaseWidget);
         lua_setfield(lua, -2, "__gc");
@@ -555,7 +600,7 @@ LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager, UIWidget* root)
             Operation::SetResizable, Operation::GetWindowState, Operation::Minimize, Operation::Maximize,
             Operation::Restore, Operation::Close, Operation::BringToFront, Operation::SetRenderCallback,
             Operation::CreateImage, Operation::SetSource, Operation::GetSource,
-            Operation::IsLoaded, Operation::SetFit, Operation::GetFit
+            Operation::IsLoaded, Operation::SetFit, Operation::GetFit, Operation::SetImage
         };
         for (auto method : methods) {
             PushOperation(lua, method, rootIndex);
@@ -568,6 +613,8 @@ LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager, UIWidget* root)
         lua_setfield(lua, -2, "Root");
         PushOperation(lua, Operation::CreateFrame, rootIndex);
         lua_setfield(lua, -2, "CreateFrame");
+        PushOperation(lua, Operation::LoadImage, rootIndex);
+        lua_setfield(lua, -2, "LoadImage");
         lua_setglobal(lua, "UI");
     } catch (...) {
         lua_settop(lua, top);
