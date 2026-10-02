@@ -33,6 +33,7 @@ public:
     const ITextMeasurer* GetTextMeasurer() const { return m_textMeasurer.get(); }
 
     void SetDisplaySize(float width, float height);
+    void Clear();
     UIWidget& GetOverlayRoot() { return *m_overlayRoot; }
     void ShowPopup(UIWidget& popup, float x, float y, UIWidget* owner = nullptr, bool allowOwnerInput = false);
     void ClosePopup();

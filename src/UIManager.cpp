@@ -56,6 +56,28 @@ UIManager::~UIManager() {
     LAMBUI_LOGD(TAG, "destroyed");
 }
 
+void UIManager::Clear() {
+    m_hoveredWidget = nullptr;
+    m_pressedWidget = nullptr;
+    m_focusedWidget = nullptr;
+    m_activePopup = nullptr;
+    m_popupOwner = nullptr;
+    m_popupPreviousFocus = nullptr;
+    m_tooltipTarget = nullptr;
+    m_defaultPressedButton = nullptr;
+    m_defaultEnterDown = false;
+    m_dismissedPopupPress = false;
+    m_popupAllowsOwnerInput = false;
+    m_tooltipElapsed = 0.0f;
+    m_submenus.clear();
+    m_defaultButtons.clear();
+    m_gameEventListeners.clear();
+    m_commandBucket.clear();
+    m_root->DestroyChildren();
+    m_overlayRoot->DestroyChildren();
+    m_tooltip = m_overlayRoot->CreateChild<UITooltip>("Tooltip");
+}
+
 void UIManager::SetDisplaySize(float width, float height) {
     LAMBUI_LOGD(TAG, "SetDisplaySize({}, {})", width, height);
     m_displayWidth = width;

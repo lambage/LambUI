@@ -27,6 +27,28 @@ public:
 };
 } // namespace
 
+TEST(SceneReset, ClearDropsReferencesToDestroyedWidgets) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* button = manager.GetRoot().CreateChild<UIButton>("OldSceneButton");
+    button->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 20, 20);
+    button->SetSize(100, 40);
+    manager.Update(0);
+    manager.InjectMouseMove(30, 30);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    ASSERT_EQ(manager.GetFocusedWidget(), button);
+
+    manager.Clear();
+    EXPECT_EQ(manager.GetFocusedWidget(), nullptr);
+    EXPECT_EQ(manager.GetActivePopup(), nullptr);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    manager.InjectCharacter(U'a');
+    manager.InjectMouseMove(40, 40);
+    manager.Update(1.0f);
+    manager.Render();
+    manager.Clear();
+    manager.Update(0);
+}
+
 TEST(PointerShape, WindowEdgesCornersAndPolicyMatchResizeHitRegions) {
     UIManager manager(std::make_shared<NullRenderer>());
     auto* window = manager.GetRoot().CreateChild<UIWindow>("Window");
