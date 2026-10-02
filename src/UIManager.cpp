@@ -256,6 +256,8 @@ void UIManager::InjectMouseLeave() {
 
 void UIManager::InjectMouseMove(float x, float y) {
     LAMBUI_LOGT(TAG, "InjectMouseMove({}, {})", x, y);
+    if (!m_pointerFocusHighlightsEnabled && (!m_mouseInside || x != m_mouseX || y != m_mouseY))
+        SetFocusHighlightsVisible(false);
     m_mouseInside = true;
     m_mouseX = x;
     m_mouseY = y;
@@ -316,6 +318,7 @@ UIWidget* UIManager::HitTestRecursive(UIWidget& widget, float x, float y) const 
 
 void UIManager::InjectMouseButton(MouseButton button, bool isDown) {
     LAMBUI_LOGT(TAG, "InjectMouseButton({}, isDown={})", ToString(button), isDown);
+    if (isDown && !m_pointerFocusHighlightsEnabled) SetFocusHighlightsVisible(false);
     if (m_pressedWidget && button != m_pressedButton) return;
     ResetTooltip();
     if (isDown && m_activePopup && !HitTestPopups(m_mouseX, m_mouseY)) {
@@ -373,6 +376,19 @@ void UIManager::InjectMouseWheel(float xOffset, float yOffset) {
     }
 }
 
+void UIManager::SetPointerFocusHighlightsEnabled(bool enabled) {
+    m_pointerFocusHighlightsEnabled = enabled;
+    SetFocusHighlightsVisible(enabled);
+}
+
+void UIManager::SetFocusHighlightsVisible(bool visible) {
+    m_focusHighlightsVisible = visible;
+    if (m_focusedWidget && m_focusedWidget->m_focusHighlightsVisible != visible) {
+        m_focusedWidget->m_focusHighlightsVisible = visible;
+        m_focusedWidget->MarkDirty();
+    }
+}
+
 void UIManager::SetFocusedWidget(UIWidget* widget) {
     if (widget == m_focusedWidget) return;
     CancelDialogDefaultPress();
@@ -381,7 +397,10 @@ void UIManager::SetFocusedWidget(UIWidget* widget) {
     if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) focusable->OnFocusLost();
     if (m_focusedWidget) m_focusedWidget->m_hasManagerFocus = false;
     m_focusedWidget = widget;
-    if (m_focusedWidget) m_focusedWidget->m_hasManagerFocus = true;
+    if (m_focusedWidget) {
+        m_focusedWidget->m_hasManagerFocus = true;
+        m_focusedWidget->m_focusHighlightsVisible = m_focusHighlightsVisible;
+    }
     if (auto* focusable = dynamic_cast<IFocusable*>(m_focusedWidget)) focusable->OnFocusGained();
     if (auto* input = dynamic_cast<UIInputBox*>(m_focusedWidget)) {
         input->UpdateModifiers(m_leftShift || m_rightShift, m_leftControl || m_rightControl);
@@ -521,6 +540,7 @@ bool UIManager::InjectPaste() {
 
 void UIManager::InjectKeyEvent(uint32_t scanCode, bool isDown) {
     LAMBUI_LOGT(TAG, "InjectKeyEvent({}, isDown={})", scanCode, isDown);
+    if (isDown) SetFocusHighlightsVisible(true);
     ResetTooltip();
     if (scanCode == ScanCode::LeftShift || scanCode == ScanCode::RightShift) {
         (scanCode == ScanCode::LeftShift ? m_leftShift : m_rightShift) = isDown;

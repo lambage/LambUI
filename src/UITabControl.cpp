@@ -101,7 +101,7 @@ void UITabControl::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket
         UIRenderCommand edge = header;
         edge.height = std::min(2.0f, header.height);
         edge.y = selected ? rect.y : rect.y + height - edge.height;
-        edge.color = selected ? (HasKeyboardFocus() ? 0xB9F4DDFFu : 0x67DBB3FFu) : 0x71808AFFu;
+        edge.color = selected ? (HasKeyboardFocus() && AreFocusHighlightsVisible() ? 0xB9F4DDFFu : 0x67DBB3FFu) : 0x71808AFFu;
         bucket.push_back(edge);
         header.type = RenderCommandType::PushScissor;
         header.x += std::min(6.0f, header.width);

@@ -54,6 +54,7 @@ public:
     bool InjectCut();
     bool InjectPaste();
     UIWidget* GetFocusedWidget() const { return m_focusedWidget; }
+    void SetPointerFocusHighlightsEnabled(bool enabled);
     bool SetDefaultButton(UIWidget& dialog, UIButton* button);
     UIButton* GetDefaultButton(const UIWidget& dialog) const;
 
@@ -82,6 +83,7 @@ private:
     UIWidget* PopupScope() const;
     UIWidget* HitTestPopups(float x, float y) const;
     void SetFocusedWidget(UIWidget* widget);
+    void SetFocusHighlightsVisible(bool visible);
     UIButton* DialogDefaultTarget() const;
     void CancelDialogDefaultPress();
     void ValidateDialogDefaultPress();
@@ -126,6 +128,8 @@ private:
     float m_mouseX = 0.0f;
     float m_mouseY = 0.0f;
     bool m_mouseInside = true;
+    bool m_pointerFocusHighlightsEnabled = true;
+    bool m_focusHighlightsVisible = true;
 
     UIWidget* m_hoveredWidget = nullptr;
     UIWidget* m_pressedWidget = nullptr; // captures mouse-move for dragging (e.g. UISlider)

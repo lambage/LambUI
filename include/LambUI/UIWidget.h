@@ -100,6 +100,7 @@ public:
     bool IsDirty() const { return m_isDirty; }
 
 protected:
+    bool AreFocusHighlightsVisible() const { return m_focusHighlightsVisible; }
     virtual void OnPointerActivated() {}
     virtual void OnLayoutChanged() {}
 
@@ -165,6 +166,7 @@ private:
     bool m_isKeyboardEnabled = true;
     bool m_hasManagerFocus = false;
     bool m_focusRingEnabled = true;
+    bool m_focusHighlightsVisible = true;
     uint32_t m_focusRingColor = 0xB9F4DDFFu;
     bool m_isDirty = true;
     bool m_paddingChanged = false;

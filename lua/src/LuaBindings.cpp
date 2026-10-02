@@ -28,6 +28,7 @@ struct BindingState {
     UIManager& manager;
     UIWidget& root;
     UIImageLoader imageLoader;
+    std::function<void*(const std::string&, int)> fontResolver;
     bool active = true;
     std::unordered_set<int> references;
 
@@ -118,12 +119,16 @@ enum class Operation {
     IsChecked, GetContent, SetContentSize, SetScrollOffset, SetTooltip, SetProgressColors,
     SetTitle, SetBounds, SetSizeLimits, SetMovable, SetResizable, GetWindowState,
     Minimize, Maximize, Restore, Close, BringToFront, SetRenderCallback,
-    CreateImage, SetSource, GetSource, IsLoaded, SetFit, GetFit, LoadImage, SetImage
+    CreateImage, SetSource, GetSource, IsLoaded, SetFit, GetFit, LoadImage, SetImage,
+    SetOptions, SetSelectedIndex, GetSelectedIndex
 };
 
 const char* ToString(Operation operation) {
     switch (operation) {
         case Operation::CreateFrame: return "CreateFrame";
+        case Operation::SetOptions: return "SetOptions";
+        case Operation::SetSelectedIndex: return "SetSelectedIndex";
+        case Operation::GetSelectedIndex: return "GetSelectedIndex";
         case Operation::SetSize: return "SetSize";
         case Operation::SetPoint: return "SetPoint";
         case Operation::SetAllPoints: return "SetAllPoints";
@@ -299,6 +304,7 @@ int Dispatch(lua_State* lua) {
         else if (type == "EditBox") result = parent.CreateChild<UIInputBox>(name);
         else if (type == "ScrollContainer") result = parent.CreateChild<UIScrollContainer>(name);
         else if (type == "CheckBox") result = parent.CreateChild<UICheckBox>(name);
+        else if (type == "DropDownBox") result = parent.CreateChild<UIDropDownBox>(owner->manager, name);
         else if (type == "ProgressBar") result = parent.CreateChild<UIProgressBar>(name);
         else if (type == "Window") result = parent.CreateChild<UIWindow>(name);
         else if (type == "Canvas") result = parent.CreateChild<UICanvasWidget>(name);
@@ -314,6 +320,29 @@ int Dispatch(lua_State* lua) {
 
     auto& self = Widget(lua, 1, *owner);
     switch (operation) {
+        case Operation::SetOptions: {
+            auto& dropdown = As<UIDropDownBox>(self);
+            if (!lua_istable(lua, 2)) throw std::invalid_argument("LambUI: expected an options table");
+            std::vector<std::string> options;
+            const auto count = lua_rawlen(lua, 2);
+            for (size_t index = 1; index <= count; ++index) {
+                lua_rawgeti(lua, 2, static_cast<lua_Integer>(index));
+                options.push_back(String(lua, -1));
+                lua_pop(lua, 1);
+            }
+            dropdown.SetOptions(std::move(options));
+            break;
+        }
+        case Operation::SetSelectedIndex: {
+            const auto index = Integer(lua, 2);
+            if (index < 1 || index > std::numeric_limits<int>::max())
+                throw std::invalid_argument("LambUI: expected a positive selection index");
+            As<UIDropDownBox>(self).SetSelectedIndex(static_cast<int>(index - 1));
+            break;
+        }
+        case Operation::GetSelectedIndex:
+            lua_pushinteger(lua, As<UIDropDownBox>(self).GetSelectedIndex() + 1);
+            return 1;
         case Operation::SetSize:
             self.SetSize(Number(lua, 2), Number(lua, 3));
             break;
@@ -457,7 +486,22 @@ int Dispatch(lua_State* lua) {
             return 1;
         }
         case Operation::SetFont: {
-            auto* handle = reinterpret_cast<void*>(static_cast<uintptr_t>(Integer(lua, 2)));
+            void* handle = nullptr;
+            if (lua_type(lua, 2) == LUA_TSTRING) {
+                const auto name = String(lua, 2);
+                int pixelHeight = 0;
+                if (!lua_isnoneornil(lua, 3)) {
+                    const auto size = Integer(lua, 3);
+                    if (size <= 0 || size > std::numeric_limits<int>::max())
+                        throw std::invalid_argument("LambUI: expected a positive font size");
+                    pixelHeight = static_cast<int>(size);
+                }
+                if (!owner->fontResolver) throw std::invalid_argument("LambUI: no named font resolver configured");
+                handle = owner->fontResolver(name, pixelHeight);
+                if (!handle) throw std::invalid_argument("LambUI: font '" + name + "' is not loaded at size " + std::to_string(pixelHeight));
+            } else {
+                handle = reinterpret_cast<void*>(static_cast<uintptr_t>(Integer(lua, 2)));
+            }
             if (auto* input = dynamic_cast<UIInputBox*>(&self)) input->SetFont(handle);
             else As<UITextWidget>(self).SetFont(handle);
             break;
@@ -595,6 +639,7 @@ LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager, UIWidget* root)
             Operation::GetRect, Operation::SetBackgroundColor, Operation::SetButtonColors,
             Operation::SetMultiline, Operation::SetWordWrap, Operation::SetEditingEnabled,
             Operation::SetChecked, Operation::IsChecked, Operation::GetContent,
+            Operation::SetOptions, Operation::SetSelectedIndex, Operation::GetSelectedIndex,
             Operation::SetContentSize, Operation::SetScrollOffset, Operation::SetTooltip, Operation::SetProgressColors,
             Operation::SetTitle, Operation::SetBounds, Operation::SetSizeLimits, Operation::SetMovable,
             Operation::SetResizable, Operation::GetWindowState, Operation::Minimize, Operation::Maximize,
@@ -630,6 +675,10 @@ void LuaUIBindings::SetImageLoader(UIImageLoader loader) {
 LuaUIBindings::~LuaUIBindings() {
     LAMBUI_LOGT(TAG, "Destroy");
     m_state->Detach();
+}
+
+void LuaUIBindings::SetFontResolver(std::function<void*(const std::string&, int)> resolver) {
+    m_state->fontResolver = std::move(resolver);
 }
 
 }

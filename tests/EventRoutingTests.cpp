@@ -756,6 +756,48 @@ TEST(FocusVisualization, RingFollowsFocusAndHonorsAppearanceAndEligibility) {
     EXPECT_EQ(manager.GetFocusedWidget(), nullptr);
 }
 
+TEST(FocusVisualization, PointerHighlightsCanBeHiddenWithoutDisablingKeyboardFocus) {
+    auto renderer = std::make_shared<NullRenderer>();
+    UIManager manager(renderer);
+    manager.SetPointerFocusHighlightsEnabled(false);
+    auto* button = manager.GetRoot().CreateChild<UIButton>("Button");
+    button->SetSize(100, 30);
+    button->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 10, 10);
+    button->SetFocusRingColor(0xFFCC00FFu);
+    button->SetKeyboardFocusColor(0xCC00FFFFu);
+    int clicks = 0;
+    button->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    const auto hasColor = [&](uint32_t color) {
+        manager.Render();
+        return std::any_of(renderer->commands.begin(), renderer->commands.end(),
+            [color](const UIRenderCommand& command) { return command.color == color; });
+    };
+    manager.Update(0);
+    manager.InjectMouseMove(20, 20);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    manager.InjectMouseMove(300, 300);
+    EXPECT_EQ(clicks, 1);
+    EXPECT_EQ(manager.GetFocusedWidget(), button);
+    EXPECT_TRUE(button->HasKeyboardFocus());
+    EXPECT_FALSE(hasColor(0xFFCC00FFu));
+    EXPECT_FALSE(hasColor(0xCC00FFFFu));
+    manager.InjectKeyEvent(ScanCode::Tab, true);
+    manager.InjectKeyEvent(ScanCode::Tab, false);
+    EXPECT_TRUE(hasColor(0xFFCC00FFu));
+    EXPECT_TRUE(hasColor(0xCC00FFFFu));
+    manager.InjectMouseMove(300, 300);
+    EXPECT_TRUE(hasColor(0xFFCC00FFu));
+    manager.InjectKeyEvent(ScanCode::Enter, true);
+    manager.InjectKeyEvent(ScanCode::Enter, false);
+    EXPECT_EQ(clicks, 2);
+    manager.InjectMouseMove(301, 300);
+    EXPECT_FALSE(hasColor(0xFFCC00FFu));
+    EXPECT_FALSE(hasColor(0xCC00FFFFu));
+    manager.SetPointerFocusHighlightsEnabled(true);
+    EXPECT_TRUE(hasColor(0xFFCC00FFu));
+}
+
 TEST(FocusVisualization, RingRespectsChildPaintingSiblingOrderAndAncestorClip) {
     auto renderer = std::make_shared<NullRenderer>();
     UIManager manager(renderer);

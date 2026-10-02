@@ -334,7 +334,7 @@ void UIWidget::SetFocusRingColor(uint32_t color) {
 void UIWidget::GenerateRenderCommandsWithFocus(std::vector<UIRenderCommand>& bucket) {
     if (!m_isVisible) return;
     GenerateRenderCommands(bucket);
-    if (!m_hasManagerFocus || !m_focusRingEnabled || !m_isKeyboardEnabled) return;
+    if (!m_hasManagerFocus || !m_focusRingEnabled || !m_focusHighlightsVisible || !m_isKeyboardEnabled) return;
     const auto& rect = m_computedRect;
     if (rect.width <= 0 || rect.height <= 0) return;
     for (int layer = 0; layer < 2; ++layer) {

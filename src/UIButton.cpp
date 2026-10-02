@@ -16,7 +16,7 @@ void UIButton::SetKeyboardFocusColor(uint32_t color) {
 }
 
 void UIButton::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucket) {
-    uint32_t color = HasKeyboardFocus() && m_hasFocusColor ? m_focusColor : m_normalColor;
+    uint32_t color = HasKeyboardFocus() && AreFocusHighlightsVisible() && m_hasFocusColor ? m_focusColor : m_normalColor;
     switch (GetState()) {
         case ControlState::Hovered: color = m_hoverColor; break;
         case ControlState::Pressed: color = m_pressedColor; break;

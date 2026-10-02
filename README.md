@@ -420,6 +420,11 @@ Focused widgets also receive a two-tone inset outline, drawn after their own
 subtree and within ancestor clips. It follows mouse or keyboard focus without
 changing layout; hidden/disabled targets lose it. Use `SetFocusRingEnabled(false)`
 for custom focus rendering, or `SetFocusRingColor(rgba)` to change its inner color.
+Games can call `manager.SetPointerFocusHighlightsEnabled(false)` to hide focus
+outlines and focus-only colors during mouse interaction while preserving logical
+focus, hover/press feedback, and keyboard activation. Keyboard input restores the
+highlights; actual pointer movement or a click hides them again. The default is
+`true`, preserving focus highlights for both input methods.
 Custom render overrides continue using `GenerateChildRenderCommands` or
 `AppendChildRenderCommands` so children retain focus decoration.
 Buttons show their pressed color while Enter/Space is held; releasing the matching
@@ -1062,7 +1067,7 @@ existing bubbling rules.
 The Frame/Button/StatusBar/EditBox factory and Texture/FontString methods remain
 available. `StatusBar` retains its historical slider behavior; the new
 `ProgressBar` is noninteractive. The factory also supports `CheckBox` and
-`ScrollContainer`, `Window`, and `Canvas`. The Vulkan application uses these additional methods:
+`ScrollContainer`, `Window`, `DropDownBox`, and `Canvas`. The Vulkan application uses these additional methods:
 
 - Base widgets: `ClearPoints`, `GetRect` (resolved x/y/width/height after Update),
   `SetMouseEnabled`, `SetTooltip`, and `SetBackgroundColor` (a simple solid UIStyle).
@@ -1072,6 +1077,12 @@ available. `StatusBar` retains its historical slider behavior; the new
 - EditBox: `SetMultiline`, `SetEditingEnabled`; existing injected selection,
   keyboard editing and host clipboard shortcuts work without Lua injection APIs.
 - CheckBox: `SetText`, `GetText`, `SetChecked`, `IsChecked`.
+- DropDownBox: `SetOptions({"First", "Second"})`, `SetSelectedIndex(index)`,
+  `GetSelectedIndex()`. Lua indices are one-based; an empty list returns zero.
+  Selection changes fire `OnValueChanged`, including programmatic selections.
+  Lists use a scrollable overlay outside parent clipping, opening above the
+  control when necessary. C++ callers can opt into this behavior with the
+  `UIDropDownBox(UIManager&, name)` constructor.
 - ProgressBar: `SetMinMaxValues`, `SetValue`, `GetValue`, `SetProgressColors(background, fill)`.
 - ScrollContainer: `GetContent`, `SetContentSize`, `SetScrollOffset`; create
   scrolling children under `GetContent()`, not directly under the viewport.

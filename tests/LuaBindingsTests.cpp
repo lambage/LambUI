@@ -97,6 +97,123 @@ TEST_F(LuaBindingsTest, ExistingScriptingSurfaceAndOptionalFactoryArguments) {
     EXPECT_FLOAT_EQ(button->GetComputedRect().width, 200);
 }
 
+TEST_F(LuaBindingsTest, DropdownSelectionUsesOneBasedIndicesAndValidatesArguments) {
+    ASSERT_TRUE(Run(R"lua(
+        dropdown = UI.CreateFrame("DropDownBox", "Choice")
+        assert(dropdown:GetSelectedIndex() == 0)
+        dropdown:SetOptions({"First", "Second"})
+        assert(dropdown:GetSelectedIndex() == 1)
+        changes = 0
+        dropdown:SetScript("OnValueChanged", function() changes = changes + 1 end)
+        dropdown:SetSelectedIndex(2)
+        assert(dropdown:GetSelectedIndex() == 2 and changes == 1)
+        dropdown:SetSelectedIndex(3)
+        assert(dropdown:GetSelectedIndex() == 2 and changes == 1)
+        assert(not pcall(function() dropdown:SetSelectedIndex(0) end))
+        assert(not pcall(function() dropdown:SetSelectedIndex(1.5) end))
+        assert(not pcall(function() dropdown:SetSelectedIndex(0x7FFFFFFFFFFFFFFF) end))
+        assert(not pcall(function() dropdown:SetOptions("invalid") end))
+        assert(not pcall(function() dropdown:SetOptions({"First", false}) end))
+        assert(not pcall(function() UI.Root:SetOptions({"First"}) end))
+        assert(dropdown:GetSelectedIndex() == 2)
+        dropdown:SetOptions({})
+        assert(dropdown:GetSelectedIndex() == 0)
+    )lua"));
+    EXPECT_EQ(lua_gettop(lua.get()), 0);
+}
+
+TEST_F(LuaBindingsTest, DropdownPopupEscapesParentClipScrollsAndDismisses) {
+    ASSERT_TRUE(Run(R"lua(
+        page = UI.CreateFrame("ScrollContainer", "Page")
+        page:SetSize(200, 40)
+        page:SetPoint("TOPLEFT", UI.Root, "TOPLEFT", 20, 220)
+        page:SetContentSize(200, 40)
+        dropdown = UI.CreateFrame("DropDownBox", "Choice", page:GetContent())
+        dropdown:SetSize(160, 28)
+        dropdown:SetPoint("TOPLEFT", page:GetContent(), "TOPLEFT", 0, 0)
+        options = {}
+        for index = 1, 30 do options[index] = "Option " .. index end
+        dropdown:SetOptions(options)
+    )lua"));
+    const auto click = [&](float horizontal, float vertical) {
+        manager.InjectMouseMove(horizontal, vertical);
+        manager.InjectMouseButton(MouseButton::Left, true);
+        manager.InjectMouseButton(MouseButton::Left, false);
+        manager.Update(0);
+    };
+    manager.Update(0);
+    click(40, 230);
+    auto* popup = dynamic_cast<UIContextMenu*>(manager.GetActivePopup());
+    ASSERT_NE(popup, nullptr);
+    ASSERT_TRUE(popup->IsOpen());
+    EXPECT_FLOAT_EQ(popup->GetComputedRect().width, 160);
+    EXPECT_FLOAT_EQ(popup->GetComputedRect().y, 0);
+    EXPECT_FLOAT_EQ(popup->GetComputedRect().height, 220);
+    click(40, 36);
+    ASSERT_TRUE(Run("assert(dropdown:GetSelectedIndex() == 2)"));
+    EXPECT_FALSE(popup->IsOpen());
+    click(40, 230);
+    manager.InjectMouseMove(40, 100);
+    manager.InjectMouseWheel(0, -1000);
+    manager.Update(0);
+    click(40, 208);
+    ASSERT_TRUE(Run("assert(dropdown:GetSelectedIndex() == 30)"));
+    click(40, 230);
+    manager.InjectKeyEvent(ScanCode::Escape, true);
+    manager.InjectKeyEvent(ScanCode::Escape, false);
+    EXPECT_FALSE(popup->IsOpen());
+    click(40, 230);
+    click(350, 280);
+    EXPECT_FALSE(popup->IsOpen());
+    ASSERT_TRUE(Run("assert(dropdown:GetSelectedIndex() == 30)"));
+}
+
+TEST_F(LuaBindingsTest, NamedFontsResolveFaceAndSizeAndPreserveNumericHandles) {
+    ASSERT_TRUE(Run(R"lua(
+        label = UI.Root:CreateFontString("Title")
+        label:SetText("Title")
+        assert(not pcall(function() label:SetFont("Heading", 32) end))
+    )lua"));
+    bindings->SetFontResolver([](const std::string& name, int size) -> void* {
+        if (name == "Broken") throw std::runtime_error("Font resolver failed");
+        if (name == "Heading" && size == 32) return reinterpret_cast<void*>(uintptr_t{123});
+        if (name == "Body" && size == 0) return reinterpret_cast<void*>(uintptr_t{456});
+        return nullptr;
+    });
+    ASSERT_TRUE(Run(R"lua(
+        label:SetFont("Heading", 32)
+        input = UI.CreateFrame("EditBox")
+        input:SetFont("Body")
+        input:SetText("Body")
+        input:SetSize(100, 30)
+        assert(not pcall(function() label:SetFont("Missing", 32) end))
+        assert(not pcall(function() label:SetFont("Heading", 99) end))
+        assert(not pcall(function() label:SetFont("Heading", 0) end))
+        assert(not pcall(function() label:SetFont("Heading", -1) end))
+        assert(not pcall(function() label:SetFont("Heading", 1.5) end))
+        assert(not pcall(function() label:SetFont("Broken", 32) end))
+        assert(not pcall(function() UI.Root:SetFont("Body") end))
+    )lua"));
+    manager.Update(0);
+    manager.Render();
+    bool titleFound = false;
+    for (const auto& command : renderer->commands) {
+        if (command.type == RenderCommandType::DrawString && command.text == "Title") {
+            titleFound = true;
+            EXPECT_EQ(command.fontHandle, reinterpret_cast<void*>(uintptr_t{123}));
+        }
+    }
+    EXPECT_TRUE(titleFound);
+    ASSERT_TRUE(Run("label:SetFont(456)"));
+    manager.Update(0);
+    manager.Render();
+    for (const auto& command : renderer->commands) {
+        if (command.type == RenderCommandType::DrawString && command.text == "Title")
+            EXPECT_EQ(command.fontHandle, reinterpret_cast<void*>(uintptr_t{456}));
+    }
+    EXPECT_EQ(lua_gettop(lua.get()), 0);
+}
+
 TEST_F(LuaBindingsTest, ImageWidgetsUseHostLoaderAndValidateFit) {
     int texture = 0;
     int loads = 0;

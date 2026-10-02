@@ -1,5 +1,7 @@
 #include "LambUI/UIDropDownBox.h"
 #include "LambUI/UITextWidget.h"
+#include "LambUI/UIContextMenu.h"
+#include "LambUI/UIManager.h"
 #include <algorithm>
 
 namespace LambUI {
@@ -12,8 +14,16 @@ constexpr float kOptionRowHeight = 24.0f;
 
 UIDropDownBox::UIDropDownBox(std::string name) : UIControl(std::move(name)) {}
 
+UIDropDownBox::UIDropDownBox(UIManager& manager, std::string name)
+    : UIControl(std::move(name)), m_manager(&manager) {}
+
+bool UIDropDownBox::IsExpanded() const {
+    return m_popup ? m_popup->IsOpen() : m_isExpanded;
+}
+
 void UIDropDownBox::SetOptions(std::vector<std::string> options) {
     LAMBUI_LOGT(TAG, "'{}' SetOptions({} options)", GetName(), options.size());
+    if (m_popup) m_popup->Close();
     m_options = std::move(options);
     m_selectedIndex = m_options.empty() ? -1 : 0;
     m_isExpanded = false;
@@ -24,6 +34,7 @@ void UIDropDownBox::SetSelectedIndex(int index) {
     if (index < 0 || index >= static_cast<int>(m_options.size())) return;
     LAMBUI_LOGT(TAG, "'{}' SetSelectedIndex({} -> {})", GetName(), m_selectedIndex, index);
     m_selectedIndex = index;
+    if (m_popup) m_popup->Close();
     m_isExpanded = false;
     for (UIButton* button : m_optionButtons) button->SetVisible(false);
     MarkDirty();
@@ -38,6 +49,24 @@ const std::string& UIDropDownBox::GetSelectedOption() const {
 }
 
 void UIDropDownBox::Toggle() {
+    if (m_manager) {
+        if (m_popup && m_popup->IsOpen()) {
+            m_popup->Close();
+        } else if (m_popup && !m_options.empty()) {
+            const auto& rect = GetComputedRect();
+            const auto& viewport = m_manager->GetRoot().GetComputedRect();
+            const float below = std::max(0.0f, viewport.y + viewport.height - rect.y - rect.height);
+            const float above = std::max(0.0f, rect.y - viewport.y);
+            const float requestedHeight = static_cast<float>(m_options.size()) * kOptionRowHeight;
+            const bool openAbove = requestedHeight > below && above > below;
+            const float height = std::min(requestedHeight, openAbove ? above : below);
+            m_popup->SetSize(rect.width, height);
+            m_popup->SetScrollOffset(0.0f, 0.0f);
+            m_manager->ShowPopup(*m_popup, rect.x, openAbove ? rect.y - height : rect.y + rect.height, this, true);
+        }
+        MarkDirty();
+        return;
+    }
     m_isExpanded = !m_isExpanded;
     LAMBUI_LOGT(TAG, "'{}' Toggle -> expanded={}", GetName(), m_isExpanded);
     for (size_t index = 0; index < m_optionButtons.size(); ++index) {
@@ -53,7 +82,7 @@ void UIDropDownBox::OnKeyEvent(uint32_t scanCode, bool isDown) {
         return;
     }
     if (scanCode == ScanCode::Escape) {
-        if (m_isExpanded) Toggle();
+        if (IsExpanded()) Toggle();
     } else if (!m_options.empty() && (scanCode == ScanCode::Up || scanCode == ScanCode::Down ||
                scanCode == ScanCode::Home || scanCode == ScanCode::End)) {
         const int last = static_cast<int>(m_options.size()) - 1;
@@ -68,7 +97,7 @@ void UIDropDownBox::OnKeyEvent(uint32_t scanCode, bool isDown) {
 void UIDropDownBox::OnFocusLost() {
     LAMBUI_LOGT(TAG, "'{}' OnFocusLost", GetName());
     UIControl::OnFocusLost();
-    if (m_isExpanded) Toggle();
+    if (!m_manager && m_isExpanded) Toggle();
 }
 
 void UIDropDownBox::OnEvent(const UIEventData& data) {
@@ -82,6 +111,16 @@ void UIDropDownBox::OnEvent(const UIEventData& data) {
 
 void UIDropDownBox::RebuildOptionButtons() {
     LAMBUI_LOGT(TAG, "'{}' RebuildOptionButtons", GetName());
+    if (m_manager) {
+        if (!m_popup) m_popup = m_manager->GetOverlayRoot().CreateChild<UIContextMenu>(*m_manager, GetName() + "_Options");
+        std::vector<UIMenuItem> items;
+        for (size_t index = 0; index < m_options.size(); ++index) {
+            items.push_back({m_options[index], [this, index]() { SetSelectedIndex(static_cast<int>(index)); }});
+        }
+        m_popup->SetItems(std::move(items));
+        MarkDirty();
+        return;
+    }
     for (auto* button : m_optionButtons) button->SetVisible(false);
 
     UIWidget* previous = nullptr;
@@ -149,7 +188,7 @@ void UIDropDownBox::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucke
     const float stroke = std::min({1.0f, rect.width, rect.height});
     const float arrowWidth = std::min(28.0f, rect.width);
     const float arrowLeft = rect.x + rect.width - arrowWidth;
-    const uint32_t outline = HasKeyboardFocus() || m_isExpanded ? 0x67DBB3FFu :
+    const uint32_t outline = (HasKeyboardFocus() && AreFocusHighlightsVisible()) || IsExpanded() ? 0x67DBB3FFu :
         (GetState() == ControlState::Hovered ? 0xAAB8C2FFu : 0x71808AFFu);
     quad(arrowLeft, rect.y, arrowWidth, rect.height, 0x30383FFFu);
     quad(rect.x, rect.y, rect.width, stroke, outline);
@@ -161,7 +200,7 @@ void UIDropDownBox::OnGenerateRenderCommands(std::vector<UIRenderCommand>& bucke
     const float centerX = arrowLeft + arrowWidth * 0.5f;
     const float centerY = rect.y + rect.height * 0.5f;
     for (int index = 0; index < 3; ++index) {
-        const float arrowY = centerY + (m_isExpanded ? 0.5f - index : index - 1.5f) * step;
+        const float arrowY = centerY + (IsExpanded() ? 0.5f - index : index - 1.5f) * step;
         quad(centerX + (index - 3) * step, arrowY, step, step, 0xE5EBEFFFu);
         quad(centerX + (2 - index) * step, arrowY, step, step, 0xE5EBEFFFu);
     }

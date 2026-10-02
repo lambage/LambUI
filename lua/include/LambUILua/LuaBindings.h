@@ -3,6 +3,8 @@
 #include "lambui_lua_export.h"
 #include <LambUI/UIImageWidget.h>
 #include <memory>
+#include <functional>
+#include <string>
 
 struct lua_State;
 
@@ -24,6 +26,7 @@ public:
     ~LuaUIBindings();
 
     void SetImageLoader(LambUI::UIImageLoader loader);
+    void SetFontResolver(std::function<void*(const std::string&, int)> resolver);
 
     LuaUIBindings(const LuaUIBindings&) = delete;
     LuaUIBindings& operator=(const LuaUIBindings&) = delete;
