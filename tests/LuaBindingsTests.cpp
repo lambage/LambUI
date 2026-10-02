@@ -96,6 +96,39 @@ TEST_F(LuaBindingsTest, ExistingScriptingSurfaceAndOptionalFactoryArguments) {
     EXPECT_FLOAT_EQ(button->GetComputedRect().width, 200);
 }
 
+TEST_F(LuaBindingsTest, ImageWidgetsUseHostLoaderAndValidateFit) {
+    int texture = 0;
+    int loads = 0;
+    bindings->SetImageLoader([&](const std::string& source) {
+        ++loads;
+        return source == "valid.png" ? UIImage{&texture, 200, 100} : UIImage{};
+    });
+    ASSERT_TRUE(Run(R"lua(
+        image = UI.Root:CreateImage("Artwork")
+        image:SetAllPoints(UI.Root)
+        assert(image:GetName() == "Artwork")
+        assert(image:GetFit() == "CONTAIN")
+        assert(not image:IsLoaded())
+        assert(image:SetSource("valid.png"))
+        assert(image:IsLoaded() and image:GetSource() == "valid.png")
+        image:SetFit("COVER")
+        assert(image:GetFit() == "COVER")
+        image:SetFit("STRETCH")
+        assert(image:GetFit() == "STRETCH")
+        image:SetTint(0xAABBCCFF)
+        assert(not pcall(function() image:SetFit("INVALID") end))
+        assert(not pcall(function() image:SetSource(42) end))
+        assert(not pcall(function() UI.Root:SetSource("valid.png") end))
+        assert(not image:SetSource("missing.png"))
+        assert(not image:IsLoaded())
+        assert(not image:SetSource(""))
+        assert(UI.CreateFrame("Image"):SetSource("valid.png"))
+        assert(UI.Root:CreateImage():GetName() == "")
+    )lua"));
+    EXPECT_EQ(loads, 3);
+    EXPECT_EQ(lua_gettop(lua.get()), 0);
+}
+
 TEST_F(LuaBindingsTest, InjectedScriptsAndGameEventsPreserveStack) {
     ASSERT_TRUE(Run(R"lua(
         clicks, enters, leaves = 0, 0, 0

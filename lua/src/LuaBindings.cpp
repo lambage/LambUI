@@ -26,6 +26,7 @@ struct BindingState {
     lua_State* lua;
     UIManager& manager;
     UIWidget& root;
+    UIImageLoader imageLoader;
     bool active = true;
     std::unordered_set<int> references;
 
@@ -110,7 +111,8 @@ enum class Operation {
     SetButtonColors, SetMultiline, SetWordWrap, SetEditingEnabled, SetChecked,
     IsChecked, GetContent, SetContentSize, SetScrollOffset, SetTooltip, SetProgressColors,
     SetTitle, SetBounds, SetSizeLimits, SetMovable, SetResizable, GetWindowState,
-    Minimize, Maximize, Restore, Close, BringToFront, SetRenderCallback
+    Minimize, Maximize, Restore, Close, BringToFront, SetRenderCallback,
+    CreateImage, SetSource, GetSource, IsLoaded, SetFit, GetFit
 };
 
 const char* ToString(Operation operation) {
@@ -124,6 +126,12 @@ const char* ToString(Operation operation) {
         case Operation::GetName: return "GetName";
         case Operation::RegisterEvent: return "RegisterEvent";
         case Operation::CreateTexture: return "CreateTexture";
+        case Operation::CreateImage: return "CreateImage";
+        case Operation::SetSource: return "SetSource";
+        case Operation::GetSource: return "GetSource";
+        case Operation::IsLoaded: return "IsLoaded";
+        case Operation::SetFit: return "SetFit";
+        case Operation::GetFit: return "GetFit";
         case Operation::CreateStatusBar: return "CreateStatusBar";
         case Operation::CreateFontString: return "CreateFontString";
         case Operation::SetScript: return "SetScript";
@@ -267,6 +275,11 @@ int Dispatch(lua_State* lua) {
         else if (type == "ProgressBar") result = parent.CreateChild<UIProgressBar>(name);
         else if (type == "Window") result = parent.CreateChild<UIWindow>(name);
         else if (type == "Canvas") result = parent.CreateChild<UICanvasWidget>(name);
+        else if (type == "Image") {
+            auto* image = parent.CreateChild<UIImageWidget>(name);
+            image->SetImageLoader(owner->imageLoader);
+            result = image;
+        }
         else throw std::invalid_argument("LambUI: unknown frame type '" + type + "'");
         PushWidget(lua, result, owner);
         return 1;
@@ -309,6 +322,37 @@ int Dispatch(lua_State* lua) {
         case Operation::CreateTexture:
             PushWidget(lua, self.CreateChild<UITextureWidget>(), owner);
             return 1;
+        case Operation::CreateImage: {
+            const auto name = lua_isnoneornil(lua, 2) ? std::string{} : String(lua, 2);
+            auto* image = self.CreateChild<UIImageWidget>(name);
+            image->SetImageLoader(owner->imageLoader);
+            PushWidget(lua, image, owner);
+            return 1;
+        }
+        case Operation::SetSource:
+            lua_pushboolean(lua, As<UIImageWidget>(self).SetSource(String(lua, 2)));
+            return 1;
+        case Operation::GetSource: {
+            const auto& source = As<UIImageWidget>(self).GetSource();
+            lua_pushlstring(lua, source.data(), source.size());
+            return 1;
+        }
+        case Operation::IsLoaded:
+            lua_pushboolean(lua, As<UIImageWidget>(self).IsLoaded());
+            return 1;
+        case Operation::SetFit: {
+            const auto fit = String(lua, 2);
+            if (fit == "CONTAIN") As<UIImageWidget>(self).SetFit(ImageFit::Contain);
+            else if (fit == "COVER") As<UIImageWidget>(self).SetFit(ImageFit::Cover);
+            else if (fit == "STRETCH") As<UIImageWidget>(self).SetFit(ImageFit::Stretch);
+            else throw std::invalid_argument("LambUI: unknown image fit '" + fit + "'");
+            break;
+        }
+        case Operation::GetFit: {
+            const auto fit = As<UIImageWidget>(self).GetFit();
+            lua_pushstring(lua, fit == ImageFit::Contain ? "CONTAIN" : fit == ImageFit::Cover ? "COVER" : "STRETCH");
+            return 1;
+        }
         case Operation::CreateStatusBar:
             PushWidget(lua, self.CreateChild<UISlider>(String(lua, 2)), owner);
             return 1;
@@ -343,7 +387,8 @@ int Dispatch(lua_State* lua) {
             As<UITextureWidget>(self).SetTexture(reinterpret_cast<void*>(static_cast<uintptr_t>(Integer(lua, 2))));
             break;
         case Operation::SetTint:
-            As<UITextureWidget>(self).SetTint(Color(lua, 2));
+            if (auto* image = dynamic_cast<UIImageWidget*>(&self)) image->SetTint(Color(lua, 2));
+            else As<UITextureWidget>(self).SetTint(Color(lua, 2));
             break;
         case Operation::SetMinMaxValues:
             if (auto* progress = dynamic_cast<UIProgressBar*>(&self)) progress->SetMinMaxValues(Number(lua, 2), Number(lua, 3));
@@ -508,7 +553,9 @@ LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager, UIWidget* root)
             Operation::SetContentSize, Operation::SetScrollOffset, Operation::SetTooltip, Operation::SetProgressColors,
             Operation::SetTitle, Operation::SetBounds, Operation::SetSizeLimits, Operation::SetMovable,
             Operation::SetResizable, Operation::GetWindowState, Operation::Minimize, Operation::Maximize,
-            Operation::Restore, Operation::Close, Operation::BringToFront, Operation::SetRenderCallback
+            Operation::Restore, Operation::Close, Operation::BringToFront, Operation::SetRenderCallback,
+            Operation::CreateImage, Operation::SetSource, Operation::GetSource,
+            Operation::IsLoaded, Operation::SetFit, Operation::GetFit
         };
         for (auto method : methods) {
             PushOperation(lua, method, rootIndex);
@@ -527,6 +574,10 @@ LuaUIBindings::LuaUIBindings(lua_State* lua, UIManager& manager, UIWidget* root)
         throw;
     }
     lua_settop(lua, top);
+}
+
+void LuaUIBindings::SetImageLoader(UIImageLoader loader) {
+    m_state->imageLoader = std::move(loader);
 }
 
 LuaUIBindings::~LuaUIBindings() {

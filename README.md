@@ -117,6 +117,47 @@ and internal decorations remain unchanged. Shadows obey ancestor clips but
 sit outside their own container's clip. No graphics headers or HAL changes.
 The GL33/SDL3 Build tab demonstrates these APIs; Lua exposure remains pending.
 
+### Images
+
+`UIImageWidget` displays an image source through a host-provided
+`UIImageLoader`, without graphics-API or file-decoder dependencies. The loader
+receives the source string and returns `UIImage{textureHandle, width, height}`;
+the host owns and caches the texture and must keep it valid while in use.
+Return an empty image on load failure. `SetSource` returns whether loading
+succeeded; an empty source, missing loader, null handle, or nonpositive image
+dimensions clears the image. Loader exceptions propagate to C++ callers and
+become Lua errors through the bindings.
+
+```cpp
+auto* image = manager.GetRoot().CreateChild<LambUI::UIImageWidget>("Artwork");
+image->SetImageLoader(loadImage);
+image->SetAllPoints(&manager.GetRoot());
+image->SetSource("assets/artwork.png");
+```
+
+`SetFit(ImageFit::Contain)` (the default) centers the entire image inside its
+layout box with preserved aspect ratio. `Cover` fills the box and crops UVs
+symmetrically; `Stretch` fills it without preserving aspect ratio. Fitting
+follows layout changes without reloading. `SetTint` applies packed RGBA color.
+The widget's layout and hit-test bounds remain the full box.
+
+For Lua, call `LuaUIBindings::SetImageLoader(loadImage)` before running scripts.
+New image widgets copy that loader; changing it does not replace loaders on
+existing widgets. In C++, `UIImageWidget::SetImageLoader` reloads its current
+source. Captured host services must outlive the widgets using them.
+
+```lua
+local image = UI.Root:CreateImage("Artwork")
+image:SetAllPoints(UI.Root)
+image:SetFit("CONTAIN")
+local loaded = image:SetSource("assets/artwork.png")
+```
+
+`UI.CreateFrame("Image", name, parent)` is also supported. Lua exposes
+`GetSource`, `IsLoaded`, `GetFit`, and `SetTint`; fit strings are `CONTAIN`,
+`COVER`, and `STRETCH`. Use `UITextureWidget` when the host already provides a
+raw texture handle, or `UICanvasWidget` for custom rendering callbacks.
+
 ### Event bubbling
 
 `UIWidget::FireEvent` dispatches to the target, then its logical parents up to

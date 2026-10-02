@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lambui_lua_export.h"
+#include <LambUI/UIImageWidget.h>
 #include <memory>
 
 struct lua_State;
@@ -21,6 +22,8 @@ public:
     // per-scene reload can DestroyChildren() on just that subtree).
     LuaUIBindings(lua_State* lua, LambUI::UIManager& manager, LambUI::UIWidget* root = nullptr);
     ~LuaUIBindings();
+
+    void SetImageLoader(LambUI::UIImageLoader loader);
 
     LuaUIBindings(const LuaUIBindings&) = delete;
     LuaUIBindings& operator=(const LuaUIBindings&) = delete;

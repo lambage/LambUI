@@ -14,6 +14,7 @@
 #include "UIEvent.h"
 #include "UIFontAtlas.h"
 #include "UIInputBox.h"
+#include "UIImageWidget.h"
 #include "UIInteractionInterfaces.h"
 #include "UILayoutSolver.h"
 #include "UILog.h"

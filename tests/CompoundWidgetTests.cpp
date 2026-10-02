@@ -28,6 +28,79 @@ public:
 };
 }
 
+TEST(ImageWidget, FitsAndResizesWithoutReloading) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    auto* frame = manager.GetRoot().CreateChild<UIWidget>("Frame");
+    frame->SetSize(400, 400);
+    frame->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 10, 20);
+    auto* image = frame->CreateChild<UIImageWidget>("Image");
+    image->SetAllPoints(frame);
+    int texture = 0;
+    int loads = 0;
+    image->SetImageLoader([&](const std::string& source) {
+        EXPECT_EQ(source, "image.png");
+        ++loads;
+        return UIImage{&texture, 200, 100};
+    });
+    ASSERT_TRUE(image->SetSource("image.png"));
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 1u);
+    EXPECT_EQ(renderer->bucket[0].textureHandle, &texture);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].x, 10);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].y, 120);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].width, 400);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].height, 200);
+    frame->SetSize(800, 200);
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 1u);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].x, 210);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].y, 20);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].width, 400);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].height, 200);
+    EXPECT_EQ(loads, 1);
+    image->SetFit(ImageFit::Cover);
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 1u);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].width, 800);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].v0, 0.25f);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].v1, 0.75f);
+    image->SetFit(ImageFit::Stretch);
+    image->SetTint(0x12345678u);
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->bucket.size(), 1u);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].width, 800);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].v0, 0);
+    EXPECT_FLOAT_EQ(renderer->bucket[0].v1, 1);
+    EXPECT_EQ(renderer->bucket[0].color, 0x12345678u);
+    frame->SetSize(0, 0);
+    manager.Update(0);
+    manager.Render();
+    EXPECT_TRUE(renderer->bucket.empty());
+}
+
+TEST(ImageWidget, MissingAndInvalidSourcesDoNotDrawStaleTextures) {
+    auto renderer = std::make_shared<RecordingRenderer>();
+    UIManager manager(renderer);
+    auto* image = manager.GetRoot().CreateChild<UIImageWidget>();
+    image->SetSize(100, 100);
+    EXPECT_FALSE(image->SetSource("image.png"));
+    int texture = 0;
+    image->SetImageLoader([&](const std::string&) { return UIImage{&texture, 100, 100}; });
+    EXPECT_TRUE(image->IsLoaded());
+    image->SetImageLoader([&](const std::string&) { return UIImage{&texture, 0, 100}; });
+    EXPECT_FALSE(image->IsLoaded());
+    manager.Update(0);
+    manager.Render();
+    EXPECT_TRUE(renderer->bucket.empty());
+    EXPECT_FALSE(image->SetSource(""));
+    EXPECT_EQ(image->GetSource(), "");
+}
+
 TEST(Clipboard, LabelHighlightsFollowFontWrappingPaddingAndAncestorClips) {
     auto renderer = std::make_shared<RecordingRenderer>();
     auto measurer = std::make_shared<FontTestMeasurer>();

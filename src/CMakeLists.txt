@@ -40,6 +40,7 @@ add_library(lambui
     UIInputBox.cpp
     UIDropDownBox.cpp
     UITextureWidget.cpp
+    UIImageWidget.cpp
     UITextureAtlas.cpp
     UITextWidget.cpp
     UICanvasWidget.cpp
