@@ -665,6 +665,56 @@ to framebuffer pixels for high-DPI displays. Texture handles in this backend
 encode a `GLuint` through `uintptr_t`; font handles independently select
 registered atlas/texture pairs.
 
+#### Rendering performance
+
+GL33 coalesces consecutive quads and font glyphs with matching texture and
+shader state into instanced draws, capped at 4,096 quads per batch. Tint is
+per instance, so differently colored shapes can share a draw. Painter order
+is unchanged: texture/shader changes, scissors, and custom callbacks split
+batches. Callbacks still execute every frame, including animated canvases.
+
+Each quad uses a 48-byte bounds/UV/color instance record. The renderer retains
+batch buffers and uploads only batches whose instance data changed; unchanged
+frames have zero geometry uploads but still draw into the host's framebuffer.
+Uniform and texture-content changes do not require geometry uploads. Unused
+batch buffers are released when the command list shrinks. Per-submission
+`GetDrawCallCount()`, `GetQuadCount()`, and `GetUploadCount()` expose the work.
+This is backend command-data dirty tracking, not logical-tree caching:
+`UIManager` continues generating commands each frame so existing custom widgets
+and dynamic visual state need no new invalidation contract. `IRenderer` is
+unchanged; legacy GL, SDL3, and Vulkan retain their existing submission paths.
+
+The platform-independent `TextureAtlas` packs tightly packed, top-down RGBA8
+images into fixed-size pages. Every image has a one-pixel extruded gutter for
+linear filtering without neighboring-image bleed. Regions remain stable for
+the page lifetime; there is no repacking, eviction, resizing, or mipmapping.
+The shelf packer can leave unused space. A full page returns `boost::none`;
+allocate another page when needed. Invalid page dimensions throw
+`std::invalid_argument`; image dimensions/data are validated before insertion.
+
+```cpp
+TextureAtlas icons(256, 256);
+auto region = icons.AddImage(imageWidth, imageHeight, rgbaBytes);
+if (!region) throw std::runtime_error("Atlas page full or invalid image");
+void* texture = renderer->UploadTextureAtlas(icons); // GL33 example adapter
+if (!texture) throw std::runtime_error("Atlas upload failed");
+imageWidget->SetTexture(texture);
+imageWidget->SetUVRect(region->u0, region->v0, region->u1, region->v1);
+```
+
+`UpdateImage(region.id, rgbaBytes)` replaces same-size content without moving
+UVs. `GetRevision()` advances only on successful additions or changed pixels;
+failed operations and identical updates leave it unchanged. Other hosts upload
+`GetPixels()` as RGBA8 using `GetWidth()`/`GetHeight()` and their own opaque
+texture handle. No GPU allocation happens in the core atlas.
+
+GL33's `UploadTextureAtlas` creates an owned texture or updates the existing
+one only when its revision changes; call it after CPU edits and before render
+submission. `GetTextureUploadCount()` is cumulative. Atlas objects must remain
+alive at a stable address while registered. Stop using the texture handle and
+call `ReleaseTextureAtlas` before destroying the atlas, or keep the atlas alive
+until the renderer is destroyed. Font atlases retain their separate SDF format.
+
 Run the bounded native GPU checks (requires a working desktop GL context):
 
 ```powershell
@@ -679,6 +729,11 @@ Normal-size text is also checked for soft edges and solid strokes at
 uses a widened derivative-based SDF transition to reduce small-text aliasing.
 The smoke checks also verify registered atlas metrics, distinct heading-font
 pixels, and exact default-font fallback for an unknown handle.
+Performance checks compare batched translucent pixels against individual draws,
+require 100 compatible quads and multi-glyph strings to use one draw, and verify
+unchanged/partially changed uploads, callback barriers, batch overflow, and empty
+submissions. RGBA atlas checks cover shared draws, edge sampling, stable handles,
+and revision-based texture updates.
 It exits nonzero on failure and optionally writes `*-desktop.ppm` and
 `*-compact.ppm` screenshots. These GPU checks are separate from CTest so the
 core tests remain runnable without a display. GL resources are released

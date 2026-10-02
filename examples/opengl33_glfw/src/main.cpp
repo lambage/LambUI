@@ -251,6 +251,124 @@ bool CheckTextCoverage(GL33ExampleRenderer& renderer) {
     return glGetError() == GL_NO_ERROR && passed;
 }
 
+bool CheckTextureAtlas(GL33ExampleRenderer& renderer, int width, int height) {
+    LAMBUI_LOGT(TAG, "CheckTextureAtlas");
+    renderer.SetViewportSize(width, height, width, height);
+    TextureAtlas atlas(8, 4);
+    const auto red = atlas.AddImage(1, 1, {255, 0, 0, 255});
+    const auto blue = atlas.AddImage(1, 1, {0, 0, 255, 255});
+    if (!red || !blue) return false;
+    const auto uploads = renderer.GetTextureUploadCount();
+    void* handle = renderer.UploadTextureAtlas(atlas);
+    bool passed = handle && renderer.GetTextureUploadCount() == uploads + 1;
+    passed = renderer.UploadTextureAtlas(atlas) == handle &&
+             renderer.GetTextureUploadCount() == uploads + 1 && passed;
+    std::vector<UIRenderCommand> commands;
+    for (const auto& region : {*red, *blue}) {
+        UIRenderCommand quad;
+        quad.x = static_cast<float>(commands.size() * 32);
+        quad.width = quad.height = 32;
+        quad.textureHandle = handle;
+        quad.u0 = region.u0; quad.v0 = region.v0;
+        quad.u1 = region.u1; quad.v1 = region.v1;
+        commands.push_back(quad);
+    }
+    glClear(GL_COLOR_BUFFER_BIT);
+    renderer.SubmitRenderCommands(commands);
+    const auto pixels = ReadPixels(width, height);
+    const auto pixelMatches = [&](const std::vector<unsigned char>& image, int column, int redValue, int greenValue, int blueValue) {
+        const size_t offset = (static_cast<size_t>(height - 16) * width + column) * 4;
+        return image[offset] == redValue && image[offset + 1] == greenValue && image[offset + 2] == blueValue;
+    };
+    passed = renderer.GetDrawCallCount() == 1 && pixelMatches(pixels, 0, 255, 0, 0) &&
+             pixelMatches(pixels, 31, 255, 0, 0) && pixelMatches(pixels, 32, 0, 0, 255) && passed;
+    passed = atlas.UpdateImage(red->id, {0, 255, 0, 255}) && passed;
+    passed = renderer.UploadTextureAtlas(atlas) == handle &&
+             renderer.GetTextureUploadCount() == uploads + 2 && passed;
+    renderer.SubmitRenderCommands(commands);
+    const auto updated = ReadPixels(width, height);
+    passed = renderer.GetUploadCount() == 0 && pixelMatches(updated, 0, 0, 255, 0) &&
+             pixelMatches(updated, 32, 0, 0, 255) && passed;
+    renderer.ReleaseTextureAtlas(atlas);
+    renderer.ReleaseTextureAtlas(atlas);
+    passed = glGetError() == GL_NO_ERROR && passed;
+    LAMBUI_LOGI(TAG, "RGBA atlas shared batch/gutters/revision uploads: {}", passed ? "PASS" : "FAIL");
+    return passed;
+}
+
+bool CheckBatching(GL33ExampleRenderer& renderer, int width, int height) {
+    LAMBUI_LOGT(TAG, "CheckBatching");
+    renderer.SetViewportSize(width, height, width, height);
+    UIRenderCommand quad;
+    quad.width = quad.height = 32;
+    std::vector<UIRenderCommand> commands(100, quad);
+    for (size_t index = 0; index < commands.size(); ++index) {
+        commands[index].color = index % 2 ? 0xFF000080u : 0x00FF0080u;
+        commands[index].x = static_cast<float>(index);
+    }
+    glClear(GL_COLOR_BUFFER_BIT);
+    renderer.SubmitRenderCommands(commands);
+    bool passed = renderer.GetDrawCallCount() == 1 && renderer.GetQuadCount() == 100 &&
+                  renderer.GetUploadCount() == 1;
+    const auto batched = ReadPixels(width, height);
+    glClear(GL_COLOR_BUFFER_BIT);
+    renderer.SubmitRenderCommands(commands);
+    passed = renderer.GetUploadCount() == 0 && batched == ReadPixels(width, height) && passed;
+    LAMBUI_LOGI(TAG, "100 translucent quads: {} draw call, unchanged frame: {} buffer uploads",
+                renderer.GetDrawCallCount(), renderer.GetUploadCount());
+    glClear(GL_COLOR_BUFFER_BIT);
+    for (const auto& command : commands) renderer.SubmitRenderCommands({command});
+    passed = batched == ReadPixels(width, height) && passed;
+    renderer.SubmitRenderCommands(commands);
+    commands.back().color = 0x0000FFFFu;
+    renderer.SubmitRenderCommands(commands);
+    passed = renderer.GetUploadCount() == 1 && passed;
+    renderer.SubmitRenderCommands(commands);
+    passed = renderer.GetUploadCount() == 0 && passed;
+
+    UIRenderCommand text;
+    text.type = RenderCommandType::DrawString;
+    text.text = "Batch glyphs";
+    renderer.SubmitRenderCommands({text});
+    passed = renderer.GetDrawCallCount() == 1 && renderer.GetQuadCount() > 5 && passed;
+    renderer.SubmitRenderCommands({text});
+    passed = renderer.GetUploadCount() == 0 && passed;
+    text.text += "!";
+    renderer.SubmitRenderCommands({text});
+    passed = renderer.GetUploadCount() == 1 && passed;
+
+    int callbacks = 0;
+    UIRenderCommand callback;
+    callback.type = RenderCommandType::CustomCallback;
+    callback.customRenderFunc = [&](const UICustomRenderArgs&) {
+        ++callbacks;
+        glUseProgram(0);
+        glBindVertexArray(0);
+    };
+    renderer.SubmitRenderCommands({quad, callback, quad});
+    renderer.SubmitRenderCommands({quad, callback, quad});
+    passed = callbacks == 2 && renderer.GetDrawCallCount() == 2 && renderer.GetUploadCount() == 0 && passed;
+    UIRenderCommand changed = quad;
+    changed.x = 40;
+    renderer.SubmitRenderCommands({quad, callback, changed});
+    passed = renderer.GetUploadCount() == 1 && renderer.GetDrawCallCount() == 2 && passed;
+    renderer.SetViewportSize(width / 2, height / 2, width, height);
+    renderer.SubmitRenderCommands({quad, callback, changed});
+    passed = renderer.GetUploadCount() == 0 && passed;
+    renderer.SetViewportSize(width, height, width, height);
+    commands.assign(4097, quad);
+    renderer.SubmitRenderCommands(commands);
+    passed = renderer.GetQuadCount() == 4097 && renderer.GetDrawCallCount() == 2 && passed;
+    renderer.SubmitRenderCommands(commands);
+    passed = renderer.GetUploadCount() == 0 && passed;
+    renderer.SubmitRenderCommands({});
+    passed = renderer.GetDrawCallCount() == 0 && renderer.GetUploadCount() == 0 && passed;
+    renderer.SubmitRenderCommands({quad});
+    passed = renderer.GetUploadCount() == 1 && glGetError() == GL_NO_ERROR && passed;
+    LAMBUI_LOGI(TAG, "Batching/order/dirty uploads/callbacks/capacity: {}", passed ? "PASS" : "FAIL");
+    return passed;
+}
+
 bool CheckRenderer(GL33ExampleRenderer& renderer, int width, int height, void* headingFont) {
     LAMBUI_LOGT(TAG, "CheckRenderer({}, {})", width, height);
     renderer.SetViewportSize(64, 64, width, height);
@@ -364,6 +482,8 @@ bool CheckRenderer(GL33ExampleRenderer& renderer, int width, int height, void* h
     LAMBUI_LOGI(TAG, "Multiple-font pixels and fallback: {}", fontsPassed ? "PASS" : "FAIL");
     passed = fontsPassed && glGetError() == GL_NO_ERROR && passed;
     passed = CheckTextCoverage(renderer) && passed;
+    passed = CheckBatching(renderer, width, height) && passed;
+    passed = CheckTextureAtlas(renderer, width, height) && passed;
     renderer.SetViewportSize(width, height, width, height);
     return passed;
 }

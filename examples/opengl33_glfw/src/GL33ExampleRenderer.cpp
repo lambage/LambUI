@@ -11,12 +11,19 @@ namespace {
 constexpr const char* TAG = "GL33ExampleRenderer";
 
 constexpr const char* VertexShader = R"glsl(#version 330 core
-layout(location = 0) in vec2 position;
-layout(location = 1) in vec2 texCoord;
+layout(location = 0) in vec4 bounds;
+layout(location = 1) in vec4 uvBounds;
+layout(location = 2) in vec4 color;
 uniform vec2 displaySize;
 out vec2 uv;
+out vec4 tint;
 void main() {
-    uv = texCoord;
+    const vec2 corners[6] = vec2[6](vec2(0, 0), vec2(1, 0), vec2(1, 1),
+                                  vec2(0, 0), vec2(1, 1), vec2(0, 1));
+    vec2 corner = corners[gl_VertexID];
+    vec2 position = bounds.xy + corner * bounds.zw;
+    uv = mix(uvBounds.xy, uvBounds.zw, corner);
+    tint = color;
     gl_Position = vec4(position.x / displaySize.x * 2.0 - 1.0,
                        1.0 - position.y / displaySize.y * 2.0, 0.0, 1.0);
 }
@@ -24,9 +31,9 @@ void main() {
 
 constexpr const char* FragmentShader = R"glsl(#version 330 core
 in vec2 uv;
+in vec4 tint;
 out vec4 fragmentColor;
 uniform sampler2D image;
-uniform vec4 tint;
 uniform int mode;
 uniform float edge;
 uniform float distanceScale;
@@ -86,7 +93,8 @@ GL33ExampleRenderer::GL33ExampleRenderer() {
 GL33ExampleRenderer::~GL33ExampleRenderer() {
     LAMBUI_LOGT(TAG, "Destroy");
     for (const auto& entry : m_fonts) glDeleteTextures(1, &entry.second.second);
-    glDeleteBuffers(1, &m_vertexBuffer);
+    for (const auto& entry : m_atlases) glDeleteTextures(1, &entry.second.first);
+    for (const auto& batch : m_cachedBatches) glDeleteBuffers(1, &batch.buffer);
     glDeleteVertexArrays(1, &m_vertexArray);
     glDeleteProgram(m_program);
 }
@@ -115,7 +123,6 @@ bool GL33ExampleRenderer::Initialize() {
         return false;
     }
     m_displayLocation = glGetUniformLocation(m_program, "displaySize");
-    m_colorLocation = glGetUniformLocation(m_program, "tint");
     m_modeLocation = glGetUniformLocation(m_program, "mode");
     m_edgeLocation = glGetUniformLocation(m_program, "edge");
     m_distanceScaleLocation = glGetUniformLocation(m_program, "distanceScale");
@@ -124,15 +131,14 @@ bool GL33ExampleRenderer::Initialize() {
     glUseProgram(m_program);
     glUniform1i(glGetUniformLocation(m_program, "image"), 0);
     glGenVertexArrays(1, &m_vertexArray);
-    glGenBuffers(1, &m_vertexBuffer);
     glBindVertexArray(m_vertexArray);
-    glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer);
-    glBufferData(GL_ARRAY_BUFFER, 6 * 4 * sizeof(float), nullptr, GL_STREAM_DRAW);
+    m_instances.reserve(4096 * 12);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                          reinterpret_cast<const void*>(2 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribDivisor(0, 1);
+    glVertexAttribDivisor(1, 1);
+    glVertexAttribDivisor(2, 1);
     return glGetError() == GL_NO_ERROR;
 }
 
@@ -170,6 +176,49 @@ bool GL33ExampleRenderer::LoadFont(const FontAtlas& atlas, void* fontHandle) {
     return true;
 }
 
+void* GL33ExampleRenderer::UploadTextureAtlas(const TextureAtlas& atlas) {
+    LAMBUI_LOGT(TAG, "UploadTextureAtlas({}x{}, revision={})", atlas.GetWidth(), atlas.GetHeight(), atlas.GetRevision());
+    const auto found = m_atlases.find(&atlas);
+    if (found != m_atlases.end() && found->second.second == atlas.GetRevision())
+        return reinterpret_cast<void*>(static_cast<std::uintptr_t>(found->second.first));
+    GLint maxSize = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
+    if (atlas.GetWidth() > maxSize || atlas.GetHeight() > maxSize) return nullptr;
+    GLuint texture = found == m_atlases.end() ? 0 : found->second.first;
+    if (!texture) glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    GLint unpackAlignment = 4;
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpackAlignment);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    if (found == m_atlases.end()) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, atlas.GetWidth(), atlas.GetHeight(), 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, atlas.GetPixels().data());
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    } else {
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, atlas.GetWidth(), atlas.GetHeight(),
+                        GL_RGBA, GL_UNSIGNED_BYTE, atlas.GetPixels().data());
+    }
+    glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
+    if (glGetError() != GL_NO_ERROR) {
+        if (found == m_atlases.end()) glDeleteTextures(1, &texture);
+        return nullptr;
+    }
+    m_atlases[&atlas] = {texture, atlas.GetRevision()};
+    ++m_textureUploadCount;
+    return reinterpret_cast<void*>(static_cast<std::uintptr_t>(texture));
+}
+
+void GL33ExampleRenderer::ReleaseTextureAtlas(const TextureAtlas& atlas) {
+    LAMBUI_LOGT(TAG, "ReleaseTextureAtlas");
+    const auto found = m_atlases.find(&atlas);
+    if (found == m_atlases.end()) return;
+    glDeleteTextures(1, &found->second.first);
+    m_atlases.erase(found);
+}
+
 void GL33ExampleRenderer::SetEffect(float time, float strength) {
     LAMBUI_LOGT(TAG, "SetEffect({}, {})", time, strength);
     m_time = time;
@@ -185,7 +234,6 @@ void GL33ExampleRenderer::BindPipeline() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(m_program);
     glBindVertexArray(m_vertexArray);
-    glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer);
     glActiveTexture(GL_TEXTURE0);
     glBindSampler(0, 0);
     glUniform2f(m_displayLocation, static_cast<float>(m_width), static_cast<float>(m_height));
@@ -194,29 +242,53 @@ void GL33ExampleRenderer::BindPipeline() {
 void GL33ExampleRenderer::DrawQuad(const UIRenderCommand& command, int mode, GLuint texture,
                                    float edge, float distanceScale) {
     if (m_width <= 0 || m_height <= 0 || m_framebufferWidth <= 0 || m_framebufferHeight <= 0) return;
-    BindPipeline();
-    const float left = command.x;
-    const float top = command.y;
-    const float right = left + command.width;
-    const float bottom = top + command.height;
-    const std::array<float, 24> vertices = {
-        left, top, command.u0, command.v0, right, top, command.u1, command.v0,
-        right, bottom, command.u1, command.v1, left, top, command.u0, command.v0,
-        right, bottom, command.u1, command.v1, left, bottom, command.u0, command.v1
+    if (mode != m_batchMode || texture != m_batchTexture || edge != m_batchEdge ||
+        distanceScale != m_batchDistanceScale || m_instances.size() >= 4096 * 12) FlushBatch();
+    m_batchMode = mode;
+    m_batchTexture = texture;
+    m_batchEdge = edge;
+    m_batchDistanceScale = distanceScale;
+    const std::array<float, 12> instance = {
+        command.x, command.y, command.width, command.height,
+        command.u0, command.v0, command.u1, command.v1,
+        static_cast<float>((command.color >> 24) & 255) / 255.0f,
+        static_cast<float>((command.color >> 16) & 255) / 255.0f,
+        static_cast<float>((command.color >> 8) & 255) / 255.0f,
+        static_cast<float>(command.color & 255) / 255.0f
     };
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices.data());
-    glUniform4f(m_colorLocation,
-                static_cast<float>((command.color >> 24) & 255) / 255.0f,
-                static_cast<float>((command.color >> 16) & 255) / 255.0f,
-                static_cast<float>((command.color >> 8) & 255) / 255.0f,
-                static_cast<float>(command.color & 255) / 255.0f);
-    glUniform1i(m_modeLocation, mode);
-    glUniform1f(m_edgeLocation, edge);
-    glUniform1f(m_distanceScaleLocation, distanceScale);
+    m_instances.insert(m_instances.end(), instance.begin(), instance.end());
+    ++m_quadCount;
+}
+
+void GL33ExampleRenderer::FlushBatch() {
+    if (m_instances.empty()) return;
+    BindPipeline();
+    if (m_drawCallCount == m_cachedBatches.size()) {
+        m_cachedBatches.emplace_back();
+        glGenBuffers(1, &m_cachedBatches.back().buffer);
+    }
+    auto& cached = m_cachedBatches[m_drawCallCount];
+    glBindBuffer(GL_ARRAY_BUFFER, cached.buffer);
+    if (cached.instances != m_instances) {
+        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(m_instances.size() * sizeof(float)),
+                     m_instances.data(), GL_DYNAMIC_DRAW);
+        cached.instances = m_instances;
+        ++m_uploadCount;
+    }
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 12 * sizeof(float), nullptr);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 12 * sizeof(float),
+                          reinterpret_cast<const void*>(4 * sizeof(float)));
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 12 * sizeof(float),
+                          reinterpret_cast<const void*>(8 * sizeof(float)));
+    glUniform1i(m_modeLocation, m_batchMode);
+    glUniform1f(m_edgeLocation, m_batchEdge);
+    glUniform1f(m_distanceScaleLocation, m_batchDistanceScale);
     glUniform1f(m_timeLocation, m_time);
     glUniform1f(m_strengthLocation, m_strength);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindTexture(GL_TEXTURE_2D, m_batchTexture);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<GLsizei>(m_instances.size() / 12));
+    ++m_drawCallCount;
+    m_instances.clear();
 }
 
 void GL33ExampleRenderer::DrawString(const UIRenderCommand& command) {
@@ -256,10 +328,14 @@ void GL33ExampleRenderer::DrawEffect(const UICustomRenderArgs& args) {
     quad.width = args.viewportWidth;
     quad.height = args.viewportHeight;
     DrawQuad(quad, 3);
+    FlushBatch();
 }
 
 void GL33ExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand>& commands) {
     LAMBUI_LOGT(TAG, "SubmitRenderCommands({})", commands.size());
+    m_drawCallCount = 0;
+    m_quadCount = 0;
+    m_uploadCount = 0;
     if (m_width <= 0 || m_height <= 0 || m_framebufferWidth <= 0 || m_framebufferHeight <= 0) return;
     std::vector<std::array<GLint, 4>> clips;
     const float scaleX = static_cast<float>(m_framebufferWidth) / m_width;
@@ -284,6 +360,7 @@ void GL33ExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand
                 DrawString(command);
                 break;
             case RenderCommandType::PushScissor: {
+                FlushBatch();
                 GLint left = static_cast<GLint>(std::floor(command.x * scaleX));
                 GLint bottom = m_framebufferHeight - static_cast<GLint>(std::ceil((command.y + command.height) * scaleY));
                 GLint right = static_cast<GLint>(std::ceil((command.x + command.width) * scaleX));
@@ -299,10 +376,12 @@ void GL33ExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand
                 break;
             }
             case RenderCommandType::PopScissor:
+                FlushBatch();
                 if (!clips.empty()) clips.pop_back();
                 applyClip();
                 break;
             case RenderCommandType::CustomCallback:
+                FlushBatch();
                 if (command.customRenderFunc) {
                     command.customRenderFunc({command.x, command.y, command.width, command.height,
                                               command.customRenderUserData});
@@ -310,6 +389,11 @@ void GL33ExampleRenderer::SubmitRenderCommands(const std::vector<UIRenderCommand
                 }
                 break;
         }
+    }
+    FlushBatch();
+    while (m_cachedBatches.size() > m_drawCallCount) {
+        glDeleteBuffers(1, &m_cachedBatches.back().buffer);
+        m_cachedBatches.pop_back();
     }
     glDisable(GL_SCISSOR_TEST);
     glBindVertexArray(0);

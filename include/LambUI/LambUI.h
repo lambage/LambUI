@@ -26,6 +26,7 @@
 #include "UITreeView.h"
 #include "UITooltip.h"
 #include "UITextureWidget.h"
+#include "UITextureAtlas.h"
 #include "UITextWidget.h"
 #include "UITypes.h"
 #include "UIWidget.h"

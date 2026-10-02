@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, manual Lua C API bindings) is fully implemented and
-builds as C++14. Tests pass (126 GoogleTest cases; optional Lua enabled).
+builds as C++14. Tests pass (130 GoogleTest cases; optional Lua enabled).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -286,8 +286,23 @@ See goals.txt for full architecture vision.
     enabled). GL33/SDL3/legacy GL desktop/compact smoke passes using an
     in-memory clipboard; SDL label-selection captures inspected. OS clipboard
     round-trip not automated. README updated; core HAL/platform boundary intact.
-- [ ] Rendering perf: batching/instancing, texture atlas management,
-      command buffer dirty-tracking (currently one draw call per command).
+- [x] Rendering perf: GL33 batching/instancing, texture atlas management,
+      backend command-buffer dirty tracking.
+  - Consecutive compatible quads/glyphs share instanced draws (48 bytes/quad,
+    4,096-quad cap); tint varies per instance. Painter order, nested clips,
+    texture/shader boundaries, and per-frame custom callbacks are preserved.
+  - Retained batch buffers upload only changed instance data and release unused
+    batches. Regression: 100 translucent quads = one draw; unchanged frames =
+    zero geometry uploads. Partial edits upload only the affected batch.
+  - Platform-free RGBA TextureAtlas pages expose stable regions, extruded
+    one-pixel gutters, atomic full/invalid rejection, and update revisions.
+    GL33 owns revision-updated textures with explicit release and stable handles.
+  - Four atlas regressions; full MSVC/Ninja build and all 130 CTest cases pass
+    (Lua enabled). GL33 desktop/compact pixel, batching, callback, capacity,
+    and atlas smoke checks pass; captures inspected. README documents contracts.
+    HAL/injection unchanged; logical commands are still generated each frame.
+- [ ] Further rendering perf: logical-tree command-generation caching and
+      batching in the legacy GL/SDL3 example backends.
 - [ ] Expand Lua bindings: UIInputBox, UIDropDownBox, UICanvasWidget,
       UIControl are not exposed to Lua yet (lua/src/LuaBindings.cpp only
       covers Widget/Button/StatusBar/FontString/Texture).

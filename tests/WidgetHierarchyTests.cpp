@@ -2,11 +2,13 @@
 #include "LambUI/UIWidget.h"
 #include "LambUI/UIButton.h"
 #include "LambUI/UITextureWidget.h"
+#include "LambUI/UITextureAtlas.h"
 #include "LambUI/UIScrollContainer.h"
 #include "LambUI/UITreeView.h"
 #include <algorithm>
 #include <gtest/gtest.h>
 #include <memory>
+#include <stdexcept>
 
 using namespace LambUI;
 
@@ -17,6 +19,99 @@ public:
     void SubmitRenderCommands(const std::vector<UIRenderCommand>& bucket) override { commands = bucket; }
 };
 } // namespace
+
+TEST(TextureAtlas, StableRegionsExtrudeEdgesAndEmitSharedTextureCommands) {
+    TextureAtlas atlas(8, 8);
+    const std::vector<uint8_t> red(16, 0xAB);
+    const auto first = atlas.AddImage(2, 2, red);
+    const auto second = atlas.AddImage(2, 2, std::vector<uint8_t>(16, 0xCD));
+    ASSERT_TRUE(first);
+    ASSERT_TRUE(second);
+    EXPECT_EQ(first->x, 1);
+    EXPECT_EQ(second->x, 5);
+    EXPECT_FLOAT_EQ(first->u0, 1.0f / 8);
+    EXPECT_FLOAT_EQ(first->u1, 3.0f / 8);
+    EXPECT_EQ(atlas.GetRegion(first->id)->x, first->x);
+    for (int row = 0; row < 4; ++row) {
+        for (int column = 0; column < 8; ++column) {
+            const size_t offset = (static_cast<size_t>(row) * 8 + column) * 4;
+            for (size_t channel = 0; channel < 4; ++channel)
+                EXPECT_EQ(atlas.GetPixels()[offset + channel], column < 4 ? 0xAB : 0xCD);
+        }
+    }
+    auto renderer = std::make_shared<NullRenderer>();
+    UIManager manager(renderer);
+    for (const auto& region : {*first, *second}) {
+        auto* image = manager.GetRoot().CreateChild<UITextureWidget>();
+        image->SetTexture(&atlas);
+        image->SetUVRect(region.u0, region.v0, region.u1, region.v1);
+        image->SetSize(20, 20);
+    }
+    manager.Update(0);
+    manager.Render();
+    ASSERT_EQ(renderer->commands.size(), 2u);
+    EXPECT_EQ(renderer->commands[0].textureHandle, renderer->commands[1].textureHandle);
+    EXPECT_FLOAT_EQ(renderer->commands[0].u0, first->u0);
+    EXPECT_FLOAT_EQ(renderer->commands[1].u0, second->u0);
+}
+
+TEST(TextureAtlas, FullAndInvalidInsertionsAreAtomicAndRowsAdvance) {
+    EXPECT_THROW(TextureAtlas(0, 10), std::invalid_argument);
+    EXPECT_THROW(TextureAtlas(10, 2), std::invalid_argument);
+    TextureAtlas atlas(8, 8);
+    const std::vector<uint8_t> image(16, 0xFF);
+    const auto initialRevision = atlas.GetRevision();
+    EXPECT_FALSE(atlas.AddImage(-1, 2, image));
+    EXPECT_FALSE(atlas.AddImage(7, 2, image));
+    EXPECT_FALSE(atlas.AddImage(2, 2, {}));
+    EXPECT_EQ(atlas.GetRevision(), initialRevision);
+    for (size_t index = 0; index < 4; ++index) {
+        const auto region = atlas.AddImage(2, 2, image);
+        ASSERT_TRUE(region);
+        EXPECT_EQ(region->id, index);
+        EXPECT_EQ(region->y, index < 2 ? 1 : 5);
+    }
+    const auto pixels = atlas.GetPixels();
+    const auto revision = atlas.GetRevision();
+    EXPECT_FALSE(atlas.AddImage(1, 1, std::vector<uint8_t>(4, 0)));
+    EXPECT_EQ(atlas.GetRevision(), revision);
+    EXPECT_EQ(atlas.GetPixels(), pixels);
+    EXPECT_FALSE(atlas.GetRegion(4));
+}
+
+TEST(TextureAtlas, RejectedRowWrapPreservesRemainingShelfSpace) {
+    TextureAtlas atlas(10, 8);
+    ASSERT_TRUE(atlas.AddImage(2, 2, std::vector<uint8_t>(16, 0xFF)));
+    const auto revision = atlas.GetRevision();
+    EXPECT_FALSE(atlas.AddImage(5, 5, std::vector<uint8_t>(100, 0xFF)));
+    EXPECT_EQ(atlas.GetRevision(), revision);
+    const auto next = atlas.AddImage(2, 2, std::vector<uint8_t>(16, 0xFF));
+    ASSERT_TRUE(next);
+    EXPECT_EQ(next->id, 1u);
+    EXPECT_EQ(next->x, 5);
+    EXPECT_EQ(next->y, 1);
+}
+
+TEST(TextureAtlas, UpdatesPreserveUvsAndOnlyChangeRevisionForNewPixels) {
+    TextureAtlas atlas(4, 4);
+    std::vector<uint8_t> image = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    const auto region = atlas.AddImage(2, 2, image);
+    ASSERT_TRUE(region);
+    const auto revision = atlas.GetRevision();
+    EXPECT_TRUE(atlas.UpdateImage(region->id, image));
+    EXPECT_EQ(atlas.GetRevision(), revision);
+    EXPECT_FALSE(atlas.UpdateImage(9, image));
+    EXPECT_FALSE(atlas.UpdateImage(region->id, {}));
+    EXPECT_EQ(atlas.GetRevision(), revision);
+    image[0] = 99;
+    EXPECT_TRUE(atlas.UpdateImage(region->id, image));
+    EXPECT_EQ(atlas.GetRevision(), revision + 1);
+    EXPECT_EQ(atlas.GetPixels()[0], 99);
+    EXPECT_EQ(atlas.GetPixels()[4], 99);
+    EXPECT_EQ(atlas.GetPixels()[12], 5);
+    EXPECT_EQ(atlas.GetPixels()[60], 13);
+    EXPECT_FLOAT_EQ(atlas.GetRegion(region->id)->u1, region->u1);
+}
 
 TEST(WidgetHierarchy, ChildAnchoredToRootResolvesAbsoluteRect) {
     UIManager manager(std::make_shared<NullRenderer>());
