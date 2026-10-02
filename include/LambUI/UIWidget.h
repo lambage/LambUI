@@ -87,6 +87,9 @@ public:
     void RegisterCallback(UIEventType type, UIEventCallback callback);
     void FireEvent(const UIEventData& data);
     bool HitTest(float x, float y) const;
+    virtual PointerShape GetPointerShape(float, float, bool) const {
+        return PointerShape::Arrow;
+    }
 
     void MarkDirty();
     bool IsDirty() const { return m_isDirty; }

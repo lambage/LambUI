@@ -8,6 +8,7 @@
 #include <GL/gl.h>
 
 #include <GLFW/glfw3.h>
+#include "../../common/src/GlfwPointer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -217,6 +218,8 @@ int main(int argc, char** argv) {
     }
 
     UIManager uiManager(renderer, textMeasurer);
+    LambUIExamples::GlfwPointer pointer(window);
+    if (smoke && !pointer.SmokeTest()) return 1;
     uiManager.SetClipboardCallbacks([window](std::string& text) {
         LAMBUI_LOGT(TAG, "ReadClipboard");
         const char* value = glfwGetClipboardString(window);
@@ -232,6 +235,16 @@ int main(int argc, char** argv) {
     g_uiManager = &uiManager;
 
     glfwSetCursorPosCallback(window, CursorPosCallback);
+    glfwSetCursorEnterCallback(window, [](GLFWwindow* source, int entered) {
+        LAMBUI_LOGT(TAG, "Pointer entered={}", entered);
+        if (!g_uiManager) return;
+        if (!entered) g_uiManager->InjectMouseLeave();
+        else {
+            double mouseX = 0, mouseY = 0;
+            glfwGetCursorPos(source, &mouseX, &mouseY);
+            g_uiManager->InjectMouseMove(static_cast<float>(mouseX), static_cast<float>(mouseY));
+        }
+    });
     glfwSetMouseButtonCallback(window, MouseButtonCallback);
     glfwSetCharCallback(window, CharCallback);
     glfwSetKeyCallback(window, [](GLFWwindow* source, int key, int, int action, int) {
@@ -330,6 +343,7 @@ int main(int argc, char** argv) {
         previousTime = now;
         widgets.Update(deltaTime);
         uiManager.Update(deltaTime);
+        passed = pointer.Apply(uiManager.GetPointerShape()) && passed;
         if (smoke) passed = widgets.SmokeTest() && passed;
         glClearColor(20.0f / 255.0f, 27.0f / 255.0f, 31.0f / 255.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);

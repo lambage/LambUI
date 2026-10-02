@@ -142,6 +142,56 @@ Wheel input still uses the nearest `IScrollable` ancestor; keyboard/character
 input still uses the focused `IFocusable`. Game-event subscriptions are a
 separate broadcast mechanism and do not bubble.
 
+### Hover callbacks and native pointers
+
+Applications can already register enter/exit handlers on any widget. C++ names
+these `OnMouseEnter` and `OnMouseLeave`; Lua uses `OnEnter` and `OnLeave`:
+
+```cpp
+button->RegisterCallback(LambUI::UIEventType::OnMouseEnter,
+  [](const LambUI::UIEventData& event) {
+    OnButtonEntered(event.mouseX, event.mouseY);
+  });
+button->RegisterCallback(LambUI::UIEventType::OnMouseLeave,
+  [](const LambUI::UIEventData&) { OnButtonExited(); });
+```
+
+```lua
+button:SetScript("OnEnter", function() OnButtonEntered(button) end)
+button:SetScript("OnLeave", function() OnButtonExited(button) end)
+```
+
+The `OnButtonEntered`/`OnButtonExited` functions above are application hooks,
+not LambUI functions: animation, audio, or other application behavior stays in
+the host. Handlers run synchronously on the injecting/updating UI thread,
+after the control's own state handling, once per hover transition rather than
+on every move. Keep captured application objects alive, or detach handlers
+with `RegisterCallback(type, {})` / `SetScript(name, nil)`; registration replaces
+the previous handler for that event type.
+
+Hover targets the topmost mouse-enabled widget and does not bubble to parents.
+Use `SetMouseEnabled(false)` on decorative children (such as button labels) so
+the containing control receives hover. `Update` refreshes hover after visibility
+or layout changes. During mouse capture, hover stays on the pressed widget
+until release; no enter/leave notifications fire for widgets underneath a drag.
+
+Hosts should forward native window-leave notifications to
+`UIManager::InjectMouseLeave()` and forward the current position through
+`InjectMouseMove(x, y)` on re-entry. Leaving clears hover, or defers the leave
+until release if a widget has capture.
+
+After input and `Update`, query `UIManager::GetPointerShape()` and map it to a
+cached native cursor. `PointerShape` contains `Arrow`, `ResizeEW`, `ResizeNS`,
+`ResizeNWSE`, and `ResizeNESW`. Normal resizable windows use their actual edge
+and corner hit regions; title buttons, contents, locked/minimized/maximized
+windows use the arrow. The direction is retained throughout captured resizing.
+Custom widgets may override `UIWidget::GetPointerShape(x, y, captured)`.
+
+All four examples map these to GLFW/SDL system cursors, applying only changes
+and releasing resources before host shutdown. Unsupported native shapes fall
+back to the default arrow. Cursor handling stays entirely outside `IRenderer`
+and the command bucket; the core never polls input or calls platform APIs.
+
 ### Scroll containers
 
 Create scrolling children under `UIScrollContainer::GetContent()` and declare
@@ -569,10 +619,9 @@ focus/editing checks and the same normalization, without accessing a clipboard.
 - Text rendering uses a single-channel SDF atlas for printable ASCII, not
   full MSDF or Unicode shaping. The OpenGL 3.3 example samples it with
   derivative-based `smoothstep`; legacy OpenGL and SDL3 use approximations.
-- The Vulkan example only brings up a window/swapchain/clear-color loop; it
-  does not yet translate `UIRenderCommand`s into an actual pipeline (see the
-  TODO in `examples/vulkan/src/VulkanExampleRenderer.cpp`). The OpenGL and
-  SDL3 examples do draw the real widget tree.
+- The Vulkan example uses one frame in flight and a combined graphics/present
+  queue. It favors readable synchronization over maximum throughput; textures
+  are immutable uploads and remain renderer-owned until teardown.
 
 ## Building
 
@@ -606,7 +655,7 @@ to let CMake drive `msbuild` itself instead of Ninja.
 | `LAMBUI_BUILD_TESTS` | `ON` if top-level | Build the GoogleTest suite in `tests/` |
 | `LAMBUI_BUILD_LUA_BINDINGS` | `OFF` | Build `lua/` (Lua C API; Lua fetched if not found) |
 | `LAMBUI_INSTALL` | `ON` if top-level | Generate install/export targets |
-| `LAMBUI_EXAMPLE_OPENGL` / `_OPENGL33` / `_VULKAN` / `_SDL3` | `ON` | Toggle individual examples (Vulkan auto-skips if the SDK isn't found) |
+| `LAMBUI_EXAMPLE_OPENGL` / `_OPENGL33` / `_VULKAN` / `_SDL3` | `ON` | Toggle individual examples (Vulkan skips without the SDK or enabled Lua bindings; requires `glslc`) |
 
 ### Consuming LambUI from another CMake project
 
@@ -640,8 +689,82 @@ with its own `IRenderer` implementation and windowing/input glue:
   and GLSL 330 shaders. An animated contour canvas has a distortion slider
   and pause/resume button; labels use antialiased SDF text.
 - `lambui_example_sdl3` — SDL3 + its built-in 2D `SDL_Renderer` API.
-- `lambui_example_vulkan` — GLFW + Vulkan window/swapchain bring-up; drawing
-  the widgets themselves is still TODO (see limitations above).
+- `lambui_example_vulkan` — GLFW + Vulkan quad/SDF renderer with a complete
+  Lua-authored expedition planner, separate from the C++ widget gallery.
+
+### Vulkan Lua application
+
+[planner.lua](examples/vulkan/src/planner.lua) owns the Fieldwork application:
+route selection, terrain waypoints, multiline briefings, readiness checks,
+progress, pause/resume/reset, responsive layout, and status messages. Briefings
+are saved in memory for this run; changing routes discards unsaved edits.
+The 30-second survey is simulated, and the generated terrain is fictional.
+No C++ demo widgets or shared WidgetShowcase are used.
+
+The header's **Canvas** and **Notes** buttons open independent floating windows.
+Canvas contains a Vulkan-rendered animated distortion field, with pause/resume,
+phase reset, and a strength slider. Notes opens an editable scratchpad. **Arrange**
+opens both in an overlapping layout; click either window to raise it, drag its
+title, resize its edges/corners, or use its minimize/maximize/close buttons.
+Closed windows reopen without losing scratchpad text. The header stays reachable
+when a UI window is maximized. These are nonmodal LambUI windows, not OS windows;
+the planner map remains static. Actual host-window resizing rearranges the popups
+to fit, while selecting a route preserves their current bounds and stacking.
+
+```powershell
+cmake -S . -B build -DLAMBUI_BUILD_LUA_BINDINGS=ON -DLAMBUI_EXAMPLE_VULKAN=ON
+cmake --build build --target lambui_example_vulkan
+.\build\examples\vulkan\lambui_example_vulkan.exe
+.\build\examples\vulkan\lambui_example_vulkan.exe --validation --smoke-test --screenshot build/vulkan-planner
+```
+
+Requires the Vulkan SDK (`glslc` compiles GLSL to SPIR-V), a Vulkan-capable driver,
+and a desktop display. `--validation` additionally requires the SDK's Khronos
+validation layer and fails clearly when unavailable. The example is skipped
+when Lua bindings are disabled, leaving the core's optional dependency unchanged.
+Use `--font path.ttf`, `--heading-font path.ttf`, `--width 420 --height 780`, or
+`--script path.lua` to override defaults. Minimum window size is 360x480.
+Without smoke mode, `--screenshot prefix` captures one frame to `prefix.ppm`
+and exits. Default shaders/script are loaded from the CMake build directory;
+this executable is a build-tree example, not a relocatable installed bundle.
+
+The host exposes opaque `Host.map` and `Host.headingFont` handles, plus
+`Host.DrawField(time, strength)`, which is valid only inside a canvas render callback.
+The field uses a dedicated Vulkan pipeline; bounds and inherited clipping come
+from the active canvas, not from Lua-supplied coordinates. A replacement
+script creates global `App` with `Resize(width, height)` and `Update(seconds)`
+functions; calls are protected and errors exit the host. Scripts are trusted local
+code with standard Lua libraries enabled, not sandboxed downloads.
+The C++ host owns Vulkan, fonts, the generated terrain bitmap, frame timing, GLFW
+input translation, and clipboard callbacks. It destroys the binding before Lua
+and UIManager, and destroys Vulkan resources before the GLFW window.
+
+The renderer consumes one command bucket between `BeginFrame` and `EndFrame`:
+RGBA/UV quads, alpha blending, font-handle selection with default fallback,
+four-sample derivative-smoothed SDF coverage, nested/empty framebuffer-scaled
+scissors, and ordered custom callbacks. Native callbacks execute inside the render
+pass; `GetCommandBuffer()` is valid only during an active frame. Callbacks must
+respect the active clip and may not end the pass or recursively submit UI; the
+renderer restores its pipeline, descriptors, viewport, scissor and vertex binding
+before subsequent UI draws. Borrowed font atlases must outlive the renderer.
+`UploadTexture` takes RGBA8 pixels before `BeginFrame`; returned handles are local
+to that renderer. Null means solid white; at most 128 textures (including white
+and font atlases) are retained. No texture release/update or batching API yet.
+
+Swapchain recreation waits for idle, handles out-of-date/suboptimal results,
+and defers minimized/zero-sized surfaces. One fence protects the reusable upload
+buffer; presentation semaphores belong to individual swapchain images. GPU smoke
+checks cover alpha/UV pixels, nested/disjoint/empty scissors, SDF coverage/font
+fallback, callback state restoration, Lua input workflows and 1100x780, 420x780,
+360x480 resizing with captures. Readback requires surface transfer-source support
+and an RGBA/BGRA8 format; otherwise capture fails explicitly. Native tests remain
+separate from headless CTest. OS clipboard round-trip, non-1x DPI, and native
+host-window minimize/restore interaction are not automated by this smoke sequence.
+The floating UI windows are tested: canvas motion/pause/strength pixels, exact
+overlap-region equality when raising each window, drag/resize, title-button
+minimize/maximize/restore/close and reopening. Additional captures use
+`-windows-`, `-canvas-front-`, `-canvas-resized-`, `-canvas-minimized-`, and
+`-canvas-maximized-` with desktop/compact/minimum size suffixes.
 
 ### OpenGL 3.3 shader showcase
 
@@ -748,7 +871,7 @@ its animated contour canvas and distortion controls, with an asset inspector
 overlaid on the right. Legacy GL and SDL3 present a resizable asset browser.
 Legacy GL draws its material preview with fixed-function quads and line strips;
 it needs no shader loader and retains its alpha-tested SDF text approximation.
-Vulkan remains a separate swapchain-only example.
+Vulkan uses the separate Lua-authored Fieldwork application described above.
 
 ```powershell
 cmake --build build --target lambui_example_opengl lambui_example_opengl33 lambui_example_sdl3
@@ -857,10 +980,39 @@ callbacks; old userdata/factory calls then raise Lua errors rather than accessin
 the manager. One binding per Lua state is supported. Coroutine scripts may call
 the API, but event callbacks run as non-yielding protected calls on the main state.
 Callback failures are reported through `UILog` and leave the Lua stack balanced.
-`SetScript(name, nil)` clears a button script.
+`SetScript(name, nil)` clears a widget script. Scripts receive no arguments;
+query the widget's current value/text from the callback. Supported names are
+`OnClick`, `OnEnter`, `OnLeave`, `OnValueChanged`, `OnTextChanged`, and
+`OnEnterPressed`, `OnClose`, and `OnWindowStateChanged`; callbacks use the core's
+existing bubbling rules.
 
-The existing Frame/Button/StatusBar/EditBox factory and Texture/FontString methods
-remain available. Widget-specific methods reject incompatible widget types;
+The Frame/Button/StatusBar/EditBox factory and Texture/FontString methods remain
+available. `StatusBar` retains its historical slider behavior; the new
+`ProgressBar` is noninteractive. The factory also supports `CheckBox` and
+`ScrollContainer`, `Window`, and `Canvas`. The Vulkan application uses these additional methods:
+
+- Base widgets: `ClearPoints`, `GetRect` (resolved x/y/width/height after Update),
+  `SetMouseEnabled`, `SetTooltip`, and `SetBackgroundColor` (a simple solid UIStyle).
+- Buttons: `SetButtonColors(normal, hover, pressed)` with packed `0xRRGGBBAA` colors.
+- Text/EditBox: `SetText`, `GetText`, `SetFont(integerHandle)`, `SetWordWrap`.
+  New FontStrings automatically borrow the manager's text measurer.
+- EditBox: `SetMultiline`, `SetEditingEnabled`; existing injected selection,
+  keyboard editing and host clipboard shortcuts work without Lua injection APIs.
+- CheckBox: `SetText`, `GetText`, `SetChecked`, `IsChecked`.
+- ProgressBar: `SetMinMaxValues`, `SetValue`, `GetValue`, `SetProgressColors(background, fill)`.
+- ScrollContainer: `GetContent`, `SetContentSize`, `SetScrollOffset`; create
+  scrolling children under `GetContent()`, not directly under the viewport.
+- Window: `SetTitle`, `SetBounds(x,y,width,height)`, `SetSizeLimits(minWidth,
+  minHeight,maxWidth,maxHeight)`, `SetMovable`, `SetResizable`, `GetContent`,
+  `Minimize`, `Maximize`, `Restore`, `Close`, and `GetWindowState` ("Normal",
+  "Minimized", or "Maximized"). `BringToFront` is available on all widgets.
+- Canvas: `SetRenderCallback(function(x,y,width,height) ... end)` receives its
+  resolved logical rectangle during command submission. Call a host-provided
+  native draw function there; do not mutate the UI tree or recursively render.
+  Passing nil clears the callback. Registry ownership, protected errors, and
+  binding detachment follow the same rules as event scripts.
+
+Widget-specific methods reject incompatible widget types;
 automatic sol2 type-registration globals are no longer provided. Full binding
 coverage of newer widgets remains separate work. Gameplay event payloads retain
 the previous pointer-as-integer convention; the binding does not dereference or

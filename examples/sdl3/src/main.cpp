@@ -7,6 +7,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <vector>
 
 using namespace LambUI;
 
@@ -152,6 +153,38 @@ int RunExample(SDL_Window* window, SDL_Renderer* sdlRenderer, const std::string&
         return 1;
     }
     UIManager uiManager(renderer, textMeasurer);
+    const auto destroyCursor = [](SDL_Cursor* cursor) {
+        LAMBUI_LOGT(TAG, "Destroy native cursor");
+        if (SDL_GetCursor() == cursor) SDL_SetCursor(SDL_GetDefaultCursor());
+        SDL_DestroyCursor(cursor);
+    };
+    std::vector<std::unique_ptr<SDL_Cursor, decltype(destroyCursor)>> cursors;
+    cursors.reserve(5);
+    for (const auto shape : {SDL_SYSTEM_CURSOR_DEFAULT, SDL_SYSTEM_CURSOR_EW_RESIZE, SDL_SYSTEM_CURSOR_NS_RESIZE,
+                            SDL_SYSTEM_CURSOR_NWSE_RESIZE, SDL_SYSTEM_CURSOR_NESW_RESIZE}) {
+        LAMBUI_LOGT(TAG, "Create native cursor {}", static_cast<int>(shape));
+        cursors.emplace_back(SDL_CreateSystemCursor(shape), destroyCursor);
+        if (!cursors.back()) LAMBUI_LOGW(TAG, "Native cursor unavailable; using default arrow: {}", SDL_GetError());
+    }
+    PointerShape currentPointer = PointerShape::Arrow;
+    bool pointerApplied = false;
+    const auto applyPointer = [&](PointerShape shape) {
+        if (pointerApplied && currentPointer == shape) return true;
+        const auto index = static_cast<size_t>(shape);
+        if (index >= cursors.size()) return false;
+        LAMBUI_LOGT(TAG, "Apply pointer {}", ToString(shape));
+        if (!SDL_SetCursor(cursors[index] ? cursors[index].get() : SDL_GetDefaultCursor())) return false;
+        currentPointer = shape;
+        pointerApplied = true;
+        return true;
+    };
+    if (smoke) {
+        for (size_t index = 0; index < cursors.size(); ++index) {
+            if (!cursors[index] || !applyPointer(static_cast<PointerShape>(index)) || SDL_GetCursor() != cursors[index].get()) return 1;
+        }
+        if (!applyPointer(PointerShape::Arrow)) return 1;
+        LAMBUI_LOGI(TAG, "Standard native cursors: PASS");
+    }
     uiManager.SetClipboardCallbacks([](std::string& text) {
         LAMBUI_LOGT(TAG, "ReadClipboard");
         if (!SDL_HasClipboardText()) return false;
@@ -207,6 +240,15 @@ int RunExample(SDL_Window* window, SDL_Renderer* sdlRenderer, const std::string&
                 case SDL_EVENT_MOUSE_MOTION:
                     uiManager.InjectMouseMove(event.motion.x, event.motion.y);
                     break;
+                case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+                    uiManager.InjectMouseLeave();
+                    break;
+                case SDL_EVENT_WINDOW_MOUSE_ENTER: {
+                    float mouseX = 0, mouseY = 0;
+                    SDL_GetMouseState(&mouseX, &mouseY);
+                    uiManager.InjectMouseMove(mouseX, mouseY);
+                    break;
+                }
                 case SDL_EVENT_MOUSE_WHEEL: {
                     const float direction = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
                     uiManager.InjectMouseMove(event.wheel.mouse_x, event.wheel.mouse_y);
@@ -281,6 +323,7 @@ int RunExample(SDL_Window* window, SDL_Renderer* sdlRenderer, const std::string&
         previousTime = now;
         widgets.Update(deltaTime);
         uiManager.Update(deltaTime);
+        passed = applyPointer(uiManager.GetPointerShape()) && passed;
         if (smoke) {
             passed = widgets.SmokeTest() && passed;
             passed = CheckClipping(sdlRenderer, *renderer) && passed;

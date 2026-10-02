@@ -2,7 +2,7 @@
 
 Baseline: core architecture (dual-tree, anchor layout, IRenderer HAL, input
 injection, event routing, manual Lua C API bindings) is fully implemented and
-builds as C++14. Tests pass (130 GoogleTest cases; optional Lua enabled).
+builds as C++14. Tests pass (137 GoogleTest cases; optional Lua enabled).
 See goals.txt for full architecture vision.
 
 ## High priority (blocks core use cases)
@@ -75,6 +75,15 @@ See goals.txt for full architecture vision.
     so selecting an option cannot reopen the menu. Same-widget callbacks run.
   - Added 8 regression tests. Full MSVC/Ninja build and all 23 CTest cases
     pass; optional Lua bindings remain disabled in this build.
+- [x] Standard resize pointers and application hover callbacks (user-requested).
+  - Platform-neutral PointerShape query shares UIWindow resize hit regions;
+    captured drags retain direction. GLFW/SDL hosts cache native system cursors.
+  - Existing C++ OnMouseEnter/OnMouseLeave and Lua OnEnter/OnLeave documented
+    and tested; InjectMouseLeave handles host exit with capture-aware delivery.
+    No audio implementation or platform dependencies in the core/HAL.
+  - Four regressions added. Full MSVC/Ninja build and all 137 CTest cases pass.
+    All four native examples pass cursor and desktop/compact smoke checks;
+    Vulkan also passes minimum-size/return-to-desktop with zero validation errors.
 - [x] More compound widgets: ProgressBar, MenuBar, TabControl, TreeView,
       context menu, tooltip system.
   - Added UIProgressBar, UIMenuBar, UITabControl, UITreeView, UIContextMenu,
@@ -188,10 +197,38 @@ See goals.txt for full architecture vision.
     SetText updates, and single-line Enter submission. Selection is independent.
   - Two regressions added. Full MSVC/Ninja build and all 93 CTest cases pass;
     GL33/SDL3 desktop/compact read-only smoke checks pass. Lua disabled.
-- [ ] Vulkan renderer backend (examples/vulkan)
-  - Swapchain + frame loop wired up, but `VulkanExampleRenderer::
-    SubmitRenderCommands` only logs commands — no render pass/pipeline,
-    no quad or text drawing implemented yet.
+- [x] Vulkan renderer backend (examples/vulkan), with a Lua-authored application.
+  - Vulkan 1.0 quad/RGBA/SDF pipelines, per-font textures, nested/empty scaled
+    scissors, ordered custom callbacks, alpha blending, and GPU readback.
+  - Owned resources, one fenced frame in flight, per-image present semaphores,
+    checked acquire/present results, resize recreation and minimized deferral.
+  - Fieldwork expedition planner is entirely composed in planner.lua: routes,
+    terrain waypoints, multiline briefings, readiness, progress, pause/resume,
+    reset, tooltips and responsive scrolling. Host only supplies rendering,
+    resources, timing, injected input and clipboard. No shared demo widgets.
+  - Scoped Lua additions and two regressions; wider binding coverage stays below.
+    Requires Lua ON and Vulkan SDK/glslc; HAL/core platform boundary unchanged.
+  - Full MSVC/Ninja build and all 132 CTest cases pass. Native GPU/Lua smoke
+    passes at 1100x780, 420x780 and 360x480, including resize back to desktop,
+    with zero Khronos validation errors; captures visually inspected.
+  - Single-frame/simple draw path, immutable textures (128 including fonts),
+    build-tree assets, simulated survey and in-memory briefing saves documented.
+    Non-1x DPI, OS clipboard and native minimize/restore are not automated.
+- [x] Vulkan Lua popup windows with a custom canvas and z-order testing.
+  - Canvas opens a shader-rendered distortion field with pause/resume, phase
+    reset and strength slider; Notes opens an independent editable scratchpad.
+    Arrange restores overlapping bounds with exposed edges at compact sizes.
+  - Existing UIWindow supplies click-to-front, drag/resize and title buttons;
+    reopen controls remain available when maximized. No planner-map animation.
+  - Lua Window/Canvas factories, window state/lifecycle methods and events,
+    BringToFront, and protected SetRenderCallback(x,y,width,height) dispatch.
+    Host.DrawField draws only during the callback, clipped to the canvas and
+    inherited window clip; subsequent UI commands restore Vulkan state.
+  - Full MSVC/Ninja build and all 133 CTest cases pass. Native validation and
+    pixel/input smoke passes at desktop/compact/minimum sizes, including animated
+    and paused frames, slider drag, overlap order in both directions, window
+    drag/resize, minimize/maximize/restore/close/reopen; captures inspected.
+    No core/HAL changes, no platform headers outside the example.
 
 ## Lower priority (polish)
 - [x] Add a standalone OpenGL 3.3 shader example alongside existing examples
@@ -301,18 +338,20 @@ See goals.txt for full architecture vision.
     (Lua enabled). GL33 desktop/compact pixel, batching, callback, capacity,
     and atlas smoke checks pass; captures inspected. README documents contracts.
     HAL/injection unchanged; logical commands are still generated each frame.
-- [ ] Further rendering perf: logical-tree command-generation caching and
-      batching in the legacy GL/SDL3 example backends.
-- [ ] Expand Lua bindings: UIInputBox, UIDropDownBox, UICanvasWidget,
-      UIControl are not exposed to Lua yet (lua/src/LuaBindings.cpp only
-      covers Widget/Button/StatusBar/FontString/Texture).
-  - Also expose the new compound widgets, checkbox/radio/window APIs and
-    window events, and tooltip properties.
+- [ ] Finish Lua binding coverage: UIDropDownBox, UIControl,
+      remaining compound widgets, radio APIs and window button policies.
+  - Vulkan application added ScrollContainer/CheckBox/ProgressBar factories,
+    content/scroll APIs, EditBox text/multiline/wrap/editing methods, font handles,
+    checkbox state, progress colors, tooltip, button/background colors, geometry,
+    and generic widget scripts for value/text/enter events. Two new tests pass.
+  - Window/Canvas factories, window geometry/state/lifecycle events, BringToFront,
+    and protected canvas render callbacks are covered by the popup follow-up.
+  - Remaining checkbox enable policies, input selection APIs, menu/tab/tree and
+    window button policies are pending; this is not a full binding expansion.
   - Expose the base-widget margin/padding, size constraints, relative sizing,
     aspect ratio, and UIStyle APIs.
   - Expose static-label selection and clipboard injection APIs.
-  - `UI.CreateFrame` factory only supports "Frame", "Button", "StatusBar",
-    "EditBox" — missing "DropDown", "Canvas" etc.      
+  - `UI.CreateFrame` still lacks "DropDown" and menu/tab/tree/radio types.
 - [ ] Software renderer backend
   - user provides a custom framebuffer
 - [ ] Animation/tween framework.

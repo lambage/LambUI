@@ -68,6 +68,24 @@ int UIWindow::ButtonAt(float x, float y) const {
     for (int index = 0; index < 3; ++index) if (Contains(GetButtonRect(static_cast<WindowButton>(index)), x, y)) return index;
     return -1;
 }
+unsigned UIWindow::ResizeEdgesAt(float x, float y) const {
+    const auto& rect = GetComputedRect();
+    if (!m_resizable || m_state != WindowState::Normal || !Contains(rect, x, y) || ButtonAt(x, y) >= 0) return 0;
+    unsigned edges = 0;
+    if (x < rect.x + Border) edges |= 1;
+    if (x >= rect.x + rect.width - Border) edges |= 2;
+    if (y < rect.y + Border) edges |= 4;
+    if (y >= rect.y + rect.height - Border) edges |= 8;
+    return edges;
+}
+PointerShape UIWindow::GetPointerShape(float mouseX, float mouseY, bool captured) const {
+    const unsigned edges = captured ? (m_dragging ? m_resizeEdges : 0) : ResizeEdgesAt(mouseX, mouseY);
+    if ((edges & 1 && edges & 4) || (edges & 2 && edges & 8)) return PointerShape::ResizeNWSE;
+    if ((edges & 1 && edges & 8) || (edges & 2 && edges & 4)) return PointerShape::ResizeNESW;
+    if (edges & 3) return PointerShape::ResizeEW;
+    if (edges & 12) return PointerShape::ResizeNS;
+    return PointerShape::Arrow;
+}
 void UIWindow::SetSizeLimits(float minWidth, float minHeight, float maxWidth, float maxHeight) {
     LAMBUI_LOGT(TAG, "'{}' SetSizeLimits({}, {}, {}, {})", GetName(), minWidth, minHeight, maxWidth, maxHeight);
     if (!std::isfinite(minWidth) || !std::isfinite(minHeight) || !std::isfinite(maxWidth) || !std::isfinite(maxHeight)) return;
@@ -173,12 +191,7 @@ void UIWindow::OnEvent(const UIEventData& data) {
         m_moved = false;
         m_pressedButton = ButtonAt(data.mouseX, data.mouseY);
         if (m_pressedButton >= 0) return;
-        if (m_state == WindowState::Normal && m_resizable) {
-            if (data.mouseX < rect.x + Border) m_resizeEdges |= 1;
-            if (data.mouseX >= rect.x + rect.width - Border) m_resizeEdges |= 2;
-            if (data.mouseY < rect.y + Border) m_resizeEdges |= 4;
-            if (data.mouseY >= rect.y + rect.height - Border) m_resizeEdges |= 8;
-        }
+        m_resizeEdges = ResizeEdgesAt(data.mouseX, data.mouseY);
         m_dragging = m_resizeEdges != 0 || (m_movable && m_state != WindowState::Maximized && data.mouseY < rect.y + TitleHeight);
         m_startX = data.mouseX;
         m_startY = data.mouseY;

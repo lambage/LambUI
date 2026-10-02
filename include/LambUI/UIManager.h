@@ -41,6 +41,8 @@ public:
 
     // --- Input injection pipeline (engine pushes events in; library never polls) ---
     void InjectMouseMove(float x, float y);
+    void InjectMouseLeave();
+    PointerShape GetPointerShape() const;
     void InjectMouseButton(MouseButton button, bool isDown);
     void InjectMouseWheel(float xOffset, float yOffset);
     void InjectKeyEvent(uint32_t scanCode, bool isDown);
@@ -122,6 +124,7 @@ private:
     float m_displayHeight = 1080.0f;
     float m_mouseX = 0.0f;
     float m_mouseY = 0.0f;
+    bool m_mouseInside = true;
 
     UIWidget* m_hoveredWidget = nullptr;
     UIWidget* m_pressedWidget = nullptr; // captures mouse-move for dragging (e.g. UISlider)

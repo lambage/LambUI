@@ -214,12 +214,26 @@ void UIManager::UpdateTooltip(float deltaTime) {
 }
 
 UIWidget* UIManager::HitTestInput(float x, float y) const {
+    if (!m_mouseInside) return nullptr;
     if (auto* hit = HitTestPopups(x, y)) return hit;
     return HitTestRecursive(*m_root, x, y);
 }
 
+PointerShape UIManager::GetPointerShape() const {
+    const bool captured = IsEffectivelyVisible(m_pressedWidget);
+    const auto* target = captured ? m_pressedWidget : HitTestInput(m_mouseX, m_mouseY);
+    return target ? target->GetPointerShape(m_mouseX, m_mouseY, captured) : PointerShape::Arrow;
+}
+
+void UIManager::InjectMouseLeave() {
+    LAMBUI_LOGT(TAG, "InjectMouseLeave");
+    m_mouseInside = false;
+    if (!IsEffectivelyVisible(m_pressedWidget)) UpdateHover(m_mouseX, m_mouseY);
+}
+
 void UIManager::InjectMouseMove(float x, float y) {
     LAMBUI_LOGT(TAG, "InjectMouseMove({}, {})", x, y);
+    m_mouseInside = true;
     m_mouseX = x;
     m_mouseY = y;
 

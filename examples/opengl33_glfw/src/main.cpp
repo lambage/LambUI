@@ -8,6 +8,7 @@
 #include "LambUI/UITextureWidget.h"
 #include "LambUI/UITextWidget.h"
 #include <GLFW/glfw3.h>
+#include "../../common/src/GlfwPointer.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -41,6 +42,16 @@ void InstallInput(GLFWwindow* window, UIManager& manager) {
         return glfwGetError(nullptr) == GLFW_NO_ERROR;
     });
     glfwSetWindowUserPointer(window, &manager);
+    glfwSetCursorEnterCallback(window, [](GLFWwindow* source, int entered) {
+        LAMBUI_LOGT(TAG, "Pointer entered={}", entered);
+        if (!Manager(source)) return;
+        if (!entered) Manager(source)->InjectMouseLeave();
+        else {
+            double mouseX = 0, mouseY = 0;
+            glfwGetCursorPos(source, &mouseX, &mouseY);
+            Manager(source)->InjectMouseMove(static_cast<float>(mouseX), static_cast<float>(mouseY));
+        }
+    });
     glfwSetCursorPosCallback(window, [](GLFWwindow* source, double mouseX, double mouseY) {
         LAMBUI_LOGT(TAG, "Cursor({}, {})", mouseX, mouseY);
         Manager(source)->InjectMouseMove(static_cast<float>(mouseX), static_cast<float>(mouseY));
@@ -516,6 +527,8 @@ int RunExample(GLFWwindow* window, const std::string& fontPath, const std::strin
         if (!metricsPassed) return 1;
     }
     UIManager manager(renderer, measurer);
+    LambUIExamples::GlfwPointer pointer(window);
+    if (smoke && !pointer.SmokeTest()) return 1;
     InstallInput(window, manager);
     auto& root = manager.GetRoot();
     auto* canvas = root.CreateChild<UICanvasWidget>("ShaderCanvas");
@@ -603,6 +616,7 @@ int RunExample(GLFWwindow* window, const std::string& fontPath, const std::strin
         if (!paused) effectTime += deltaTime;
         widgets.Update(deltaTime);
         manager.Update(deltaTime);
+        passed = pointer.Apply(manager.GetPointerShape()) && passed;
         if (smoke) {
             passed = widgets.SmokeTest() && passed;
             const auto buttonRect = button->GetComputedRect();

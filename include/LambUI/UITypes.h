@@ -19,6 +19,19 @@ enum class MouseButton {
     Middle = 2
 };
 
+enum class PointerShape { Arrow, ResizeEW, ResizeNS, ResizeNWSE, ResizeNESW };
+
+inline const char* ToString(PointerShape shape) {
+    switch (shape) {
+        case PointerShape::Arrow: return "Arrow";
+        case PointerShape::ResizeEW: return "ResizeEW";
+        case PointerShape::ResizeNS: return "ResizeNS";
+        case PointerShape::ResizeNWSE: return "ResizeNWSE";
+        case PointerShape::ResizeNESW: return "ResizeNESW";
+    }
+    return "Unknown";
+}
+
 inline const char* ToString(AnchorPoint point) {
     switch (point) {
         case AnchorPoint::TopLeft: return "TopLeft";

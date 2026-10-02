@@ -59,6 +59,7 @@ public:
     WindowState GetWindowState() const { return m_state; }
     bool ClipsChildren() const override { return true; }
     void OnDrag(float mouseX, float mouseY) override;
+    PointerShape GetPointerShape(float mouseX, float mouseY, bool captured) const override;
 
 protected:
     void OnPointerActivated() override;
@@ -72,6 +73,7 @@ private:
     void SaveNormalBounds();
     void CancelDrag();
     int ButtonAt(float x, float y) const;
+    unsigned ResizeEdgesAt(float x, float y) const;
     UIScrollContainer* m_client = nullptr;
     std::string m_title;
     std::array<WindowButtonMode, 3> m_buttons{WindowButtonMode::Enabled, WindowButtonMode::Enabled, WindowButtonMode::Enabled};

@@ -14,6 +14,19 @@ using namespace LambUI;
 namespace {
 constexpr const char* TAG = "LuaBindingsTest";
 
+class LuaCanvasRenderer : public IRenderer {
+public:
+    std::vector<UIRenderCommand> commands;
+    LuaCanvasRenderer() { LAMBUI_LOGT(TAG, "Construct Lua canvas test renderer"); }
+    ~LuaCanvasRenderer() override { LAMBUI_LOGT(TAG, "Destroy Lua canvas test renderer"); }
+    void SubmitRenderCommands(const std::vector<UIRenderCommand>& bucket) override {
+        LAMBUI_LOGT(TAG, "Record Lua canvas commands");
+        commands = bucket;
+        for (const auto& command : commands)
+            if (command.customRenderFunc) command.customRenderFunc({command.x, command.y, command.width, command.height, command.customRenderUserData});
+    }
+};
+
 class LuaBindingsTest : public testing::Test {
 protected:
     std::unique_ptr<lua_State, decltype(&lua_close)> lua{luaL_newstate(), lua_close};
@@ -236,4 +249,133 @@ TEST_F(LuaBindingsTest, LuaCanCloseAfterDetachmentWhileManagerRemainsAlive) {
     manager.InjectMouseMove(10, 10);
     manager.InjectMouseButton(MouseButton::Left, true);
     manager.InjectMouseButton(MouseButton::Left, false);
+}
+
+TEST_F(LuaBindingsTest, ApplicationControlsAndInjectedValueTextCallbacks) {
+    ASSERT_TRUE(Run(R"lua(
+        changes, edits = 0, 0
+        check = UI.CreateFrame("CheckBox", "Ready")
+        check:SetSize(150, 30)
+        check:SetPoint("TOPLEFT", UI.Root, "TOPLEFT", 10, 10)
+        check:SetText("Ready")
+        check:SetTooltip("Ready for departure")
+        check:SetScript("OnValueChanged", function() changes = changes + 1 end)
+        input = UI.CreateFrame("EditBox", "Notes")
+        input:SetSize(180, 80)
+        input:SetPoint("TOPLEFT", UI.Root, "TOPLEFT", 10, 60)
+        input:SetMultiline(true)
+        input:SetWordWrap(true)
+        input:SetFont(0)
+        input:SetText("Notes")
+        input:SetScript("OnTextChanged", function() edits = edits + 1 end)
+        progress = UI.CreateFrame("ProgressBar", "Launch")
+        progress:SetMinMaxValues(0, 100)
+        progress:SetValue(200)
+        progress:SetProgressColors(0x101010FF, 0x40C080FF)
+        assert(progress:GetValue() == 100)
+        assert(check:GetText() == "Ready" and input:GetText() == "Notes")
+    )lua"));
+    manager.Update(0);
+    manager.InjectMouseMove(20, 20);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    ASSERT_TRUE(Run("assert(check:IsChecked() and changes == 1)"));
+    manager.InjectMouseMove(20, 70);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    manager.InjectCharacter(U'X');
+    ASSERT_TRUE(Run("assert(edits == 1 and #input:GetText() == 6); input:SetEditingEnabled(false)"));
+    manager.InjectCharacter(U'Y');
+    ASSERT_TRUE(Run("assert(edits == 1); input:SetScript('OnTextChanged', nil); input:SetText('Reset'); assert(edits == 1)"));
+}
+
+TEST_F(LuaBindingsTest, ApplicationScrollLayoutAndStrictMethodValidation) {
+    ASSERT_TRUE(Run(R"lua(
+        scroll = UI.CreateFrame("ScrollContainer", "Routes")
+        scroll:SetSize(200, 100)
+        scroll:SetPoint("TOPLEFT", UI.Root, "TOPLEFT", 20, 30)
+        scroll:SetContentSize(200, 400)
+        scroll:SetBackgroundColor(0x202020FF)
+        child = UI.CreateFrame("Button", "Route", scroll:GetContent())
+        child:SetSize(160, 40)
+        child:SetPoint("TOPLEFT", scroll:GetContent(), "TOPLEFT", 0, 200)
+        child:SetButtonColors(0x202020FF, 0x303030FF, 0x404040FF)
+        label = child:CreateFontString("Name")
+        label:SetText("Route")
+        label:SetFont(0)
+        label:SetMouseEnabled(false)
+        label:SetWordWrap(true)
+        label:SetSize(140, 30)
+        label:SetPoint("TOPLEFT", child, "TOPLEFT", 4, 4)
+        scroll:SetScrollOffset(0, 180)
+        local invalid = {
+            function() child:SetChecked(true) end,
+            function() scroll:SetMultiline(true) end,
+            function() child:SetMouseEnabled(1) end,
+            function() child:SetButtonColors(0, -1, 0) end,
+            function() scroll:SetContentSize(0/0, 100) end,
+            function() UI.Root:GetContent() end
+        }
+        for _, action in ipairs(invalid) do assert(not pcall(action)) end
+    )lua"));
+    manager.Update(0);
+    ASSERT_TRUE(Run("local x,y,w,h = child:GetRect(); assert(x == 20 and y == 50 and w == 160 and h == 40)"));
+    ASSERT_TRUE(Run("child:ClearPoints(); child:SetPoint('TOPLEFT', scroll:GetContent(), 'TOPLEFT', 10, 210)"));
+    manager.Update(0);
+    ASSERT_TRUE(Run("local x,y = child:GetRect(); assert(x == 30 and y == 60)"));
+}
+
+TEST_F(LuaBindingsTest, WindowsAndCanvasUseCommandCallbacksWithSafeDetachment) {
+    auto renderer = std::make_shared<LuaCanvasRenderer>();
+    UIManager canvasManager(renderer);
+    canvasManager.SetDisplaySize(400, 300);
+    bindings.reset();
+    bindings = std::make_unique<LambUILua::LuaUIBindings>(lua.get(), canvasManager);
+    ASSERT_TRUE(Run(R"lua(
+        draws, states, closes = 0, 0, 0
+        window = UI.CreateFrame("Window", "Preview")
+        window:SetTitle("Canvas preview")
+        window:SetSizeLimits(180, 120, 500, 400)
+        window:SetBounds(20, 30, 250, 200)
+        window:SetMovable(true)
+        window:SetResizable(true)
+        window:SetScript("OnWindowStateChanged", function() states = states + 1 end)
+        window:SetScript("OnClose", function() closes = closes + 1 end)
+        canvas = UI.CreateFrame("Canvas", "Field", window:GetContent())
+        canvas:SetAllPoints(window:GetContent())
+        canvas:SetRenderCallback(function(x,y,width,height)
+            draws = draws + 1
+            assert(x == 26 and y == 62 and width == 238 and height == 162)
+        end)
+        assert(not pcall(function() window:SetRenderCallback(function() end) end))
+        assert(not pcall(function() canvas:SetBounds(0,0,100,100) end))
+        assert(not pcall(function() canvas:SetRenderCallback(42) end))
+    )lua"));
+    canvasManager.Update(0);
+    lua_pushliteral(lua.get(), "sentinel");
+    const int top = lua_gettop(lua.get());
+    canvasManager.Render();
+    EXPECT_EQ(lua_gettop(lua.get()), top);
+    ASSERT_TRUE(Run("assert(draws == 1); window:Minimize(); assert(window:GetWindowState() == 'Minimized')"));
+    canvasManager.Update(0); canvasManager.Render();
+    ASSERT_TRUE(Run("assert(draws == 1); window:Restore(); window:BringToFront(); assert(states == 2)"));
+    canvasManager.Update(0); canvasManager.Render();
+    ASSERT_TRUE(Run("assert(draws == 2); window:Maximize(); assert(window:GetWindowState() == 'Maximized'); window:Restore()"));
+    ASSERT_TRUE(Run("window:Close(); assert(closes == 1 and not window:IsVisible()); window:SetVisible(true)"));
+    ASSERT_TRUE(Run(R"lua(
+        weak = setmetatable({}, {__mode = 'v'})
+        do local callback = function() draws = draws + 10 end
+            weak[1] = callback; canvas:SetRenderCallback(callback)
+        end
+        canvas:SetRenderCallback(nil); collectgarbage('collect'); assert(weak[1] == nil)
+        canvas:SetRenderCallback(function() error('contained canvas error') end)
+    )lua"));
+    canvasManager.Update(0); canvasManager.Render();
+    EXPECT_EQ(lua_gettop(lua.get()), top);
+    ASSERT_TRUE(Run("canvas:SetRenderCallback(function() draws = draws + 1 end)"));
+    canvasManager.Render();
+    ASSERT_TRUE(Run("assert(draws == 3)"));
+    bindings.reset();
+    canvasManager.Render();
+    ASSERT_TRUE(Run("assert(draws == 3)"));
 }

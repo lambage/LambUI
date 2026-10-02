@@ -27,6 +27,130 @@ public:
 };
 } // namespace
 
+TEST(PointerShape, WindowEdgesCornersAndPolicyMatchResizeHitRegions) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* window = manager.GetRoot().CreateChild<UIWindow>("Window");
+    window->SetBounds(20, 20, 240, 160);
+    manager.Update(0);
+    struct Sample { float x; float y; PointerShape shape; };
+    const Sample samples[] = {
+        {21, 80, PointerShape::ResizeEW}, {259, 80, PointerShape::ResizeEW},
+        {100, 21, PointerShape::ResizeNS}, {100, 179, PointerShape::ResizeNS},
+        {21, 21, PointerShape::ResizeNWSE}, {259, 179, PointerShape::ResizeNWSE},
+        {259, 21, PointerShape::ResizeNESW}, {21, 179, PointerShape::ResizeNESW},
+        {100, 40, PointerShape::Arrow}, {100, 100, PointerShape::Arrow},
+        {19, 80, PointerShape::Arrow}, {260, 80, PointerShape::Arrow}
+    };
+    for (const auto& sample : samples) {
+        manager.InjectMouseMove(sample.x, sample.y);
+        EXPECT_EQ(manager.GetPointerShape(), sample.shape);
+    }
+    const auto close = window->GetButtonRect(WindowButton::Close);
+    manager.InjectMouseMove(close.x + 1, close.y + 1);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::Arrow);
+    manager.InjectMouseMove(21, 80);
+    window->SetResizable(false);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::Arrow);
+    window->SetResizable(true);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::ResizeEW);
+    window->SetVisible(false);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::Arrow);
+    window->SetVisible(true);
+    window->Minimize();
+    manager.Update(0);
+    manager.InjectMouseMove(21, 21);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::Arrow);
+    window->Maximize();
+    manager.Update(0);
+    manager.InjectMouseMove(1, 1);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::Arrow);
+}
+
+TEST(PointerShape, CaptureRetainsResizeDirectionAndReleaseRestoresHitShape) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* window = manager.GetRoot().CreateChild<UIWindow>("Window");
+    window->SetBounds(20, 20, 240, 160);
+    manager.Update(0);
+    manager.InjectMouseMove(259, 179);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseMove(800, 800);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::ResizeNWSE);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::Arrow);
+    window->SetBounds(20, 20, 240, 160);
+    manager.Update(0);
+    manager.InjectMouseMove(21, 80);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    window->SetResizable(false);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::Arrow);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    window->SetResizable(true);
+    manager.InjectMouseButton(MouseButton::Right, true);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::Arrow);
+    manager.InjectMouseButton(MouseButton::Right, false);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::ResizeEW);
+}
+
+TEST(HoverCallbacks, ApplicationHandlersObserveTransitionsAndNativeLeave) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* button = manager.GetRoot().CreateChild<UIButton>("Button");
+    button->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 20, 20);
+    button->SetSize(100, 40);
+    auto* label = button->CreateChild<UITextWidget>("Label");
+    label->SetAllPoints(button);
+    label->SetMouseEnabled(false);
+    int enters = 0, leaves = 0, parentEnters = 0;
+    button->RegisterCallback(UIEventType::OnMouseEnter, [&](const UIEventData& data) {
+        ++enters;
+        EXPECT_EQ(button->GetState(), ControlState::Hovered);
+        EXPECT_FLOAT_EQ(data.mouseX, 30);
+    });
+    button->RegisterCallback(UIEventType::OnMouseLeave, [&](const UIEventData&) { ++leaves; });
+    manager.GetRoot().RegisterCallback(UIEventType::OnMouseEnter, [&](const UIEventData&) { ++parentEnters; });
+    manager.InjectMouseLeave();
+    manager.Update(0);
+    manager.InjectMouseMove(30, 30);
+    manager.InjectMouseMove(30, 35);
+    manager.Update(0);
+    EXPECT_EQ(enters, 1);
+    EXPECT_EQ(parentEnters, 0);
+    manager.InjectMouseLeave();
+    manager.InjectMouseLeave();
+    manager.Update(0);
+    EXPECT_EQ(leaves, 1);
+    EXPECT_EQ(button->GetState(), ControlState::Normal);
+    EXPECT_EQ(manager.GetPointerShape(), PointerShape::Arrow);
+    manager.InjectMouseMove(30, 30);
+    EXPECT_EQ(enters, 2);
+    button->SetVisible(false);
+    manager.Update(0);
+    EXPECT_EQ(leaves, 2);
+    button->RegisterCallback(UIEventType::OnMouseEnter, {});
+    button->SetVisible(true);
+    manager.Update(0);
+    EXPECT_EQ(enters, 2);
+    EXPECT_EQ(button->GetState(), ControlState::Hovered);
+}
+
+TEST(HoverCallbacks, NativeLeaveDuringCaptureIsDeliveredOnRelease) {
+    UIManager manager(std::make_shared<NullRenderer>());
+    auto* button = manager.GetRoot().CreateChild<UIButton>("Button");
+    button->SetPoint(AnchorPoint::TopLeft, &manager.GetRoot(), AnchorPoint::TopLeft, 20, 20);
+    button->SetSize(100, 40);
+    int leaves = 0, clicks = 0;
+    button->RegisterCallback(UIEventType::OnMouseLeave, [&](const UIEventData&) { ++leaves; });
+    button->RegisterCallback(UIEventType::OnClick, [&](const UIEventData&) { ++clicks; });
+    manager.Update(0);
+    manager.InjectMouseMove(30, 30);
+    manager.InjectMouseButton(MouseButton::Left, true);
+    manager.InjectMouseLeave();
+    manager.Update(0);
+    EXPECT_EQ(leaves, 0);
+    manager.InjectMouseButton(MouseButton::Left, false);
+    EXPECT_EQ(leaves, 1);
+    EXPECT_EQ(clicks, 0);
+}
+
 TEST(Clipboard, InputShortcutsNormalizePasteAndRespectReadOnly) {
     UIManager manager(std::make_shared<NullRenderer>());
     auto* input = manager.GetRoot().CreateChild<UIInputBox>("Input");
