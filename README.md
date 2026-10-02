@@ -1074,6 +1074,12 @@ available. `StatusBar` retains its historical slider behavior; the new
 - Buttons: `SetButtonColors(normal, hover, pressed)` with packed `0xRRGGBBAA` colors.
 - Text/EditBox: `SetText`, `GetText`, `SetFont(integerHandle)`, `SetWordWrap`.
   New FontStrings automatically borrow the manager's text measurer.
+  Hosts can also supply `LuaUIBindings::SetFontResolver` to enable
+  `SetFont("Inter-Bold", 32)` or `SetFont("Inter-Bold")`. The resolver receives
+  the requested name and pixel size (zero when omitted) and returns a registered
+  font handle. Missing resolvers, unknown faces/sizes, and invalid sizes raise
+  Lua errors; numeric handles remain supported. Register each resolved handle
+  with both the renderer and text measurer so drawing and layout agree.
 - EditBox: `SetMultiline`, `SetEditingEnabled`; existing injected selection,
   keyboard editing and host clipboard shortcuts work without Lua injection APIs.
 - CheckBox: `SetText`, `GetText`, `SetChecked`, `IsChecked`.
