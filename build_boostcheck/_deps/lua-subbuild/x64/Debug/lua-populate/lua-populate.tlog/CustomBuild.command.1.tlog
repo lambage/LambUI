@@ -1,0 +1,150 @@
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\DCD5BE2E24A13E9C33060C2C8832770C\LUA-POPULATE-MKDIR.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -Dcfgdir=/Debug -P C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/tmp/lua-populate-mkdirs.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/Debug/lua-populate-mkdir
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\DCD5BE2E24A13E9C33060C2C8832770C\LUA-POPULATE-DOWNLOAD.RULE
+setlocal
+cd C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/tmp/lua-populate-gitclone.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/Debug/lua-populate-download
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\DCD5BE2E24A13E9C33060C2C8832770C\LUA-POPULATE-UPDATE.RULE
+setlocal
+cd C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -Dcan_fetch=YES -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/tmp/lua-populate-gitupdate.cmake
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\DCD5BE2E24A13E9C33060C2C8832770C\LUA-POPULATE-PATCH.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/Debug/lua-populate-patch
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\DCD5BE2E24A13E9C33060C2C8832770C\LUA-POPULATE-CONFIGURE.RULE
+setlocal
+cd C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/Debug/lua-populate-configure
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\DCD5BE2E24A13E9C33060C2C8832770C\LUA-POPULATE-BUILD.RULE
+setlocal
+cd C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/Debug/lua-populate-build
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\DCD5BE2E24A13E9C33060C2C8832770C\LUA-POPULATE-INSTALL.RULE
+setlocal
+cd C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/Debug/lua-populate-install
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\DCD5BE2E24A13E9C33060C2C8832770C\LUA-POPULATE-TEST.RULE
+setlocal
+cd C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/Debug/lua-populate-test
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\3B244D8EDFDCD87093FA7D0ADCAE447F\LUA-POPULATE-COMPLETE.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/CMakeFiles/Debug
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/CMakeFiles/Debug/lua-populate-complete
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/Debug/lua-populate-done
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKEFILES\AFD27B153E0C395C32E1753EDB320942\LUA-POPULATE.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild -BC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild --check-stamp-file C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

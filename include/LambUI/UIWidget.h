@@ -61,7 +61,7 @@ public:
     void SetRelativeSize(float widthFraction, float heightFraction);
     void SetStyle(const UIStyle& style);
     void ClearStyle();
-    const boost::optional<UIStyle>& GetStyle() const { return m_style; }
+    const Optional<UIStyle>& GetStyle() const { return m_style; }
     const UIRect& GetComputedRect() const { return m_computedRect; }
 
     // --- Visibility / input state ---
@@ -147,7 +147,7 @@ private:
     float m_height = 0.0f;
     UIInsets m_margin;
     UIInsets m_padding;
-    boost::optional<UIStyle> m_style;
+    Optional<UIStyle> m_style;
     float m_minWidth = 0.0f;
     float m_minHeight = 0.0f;
     float m_maxWidth = std::numeric_limits<float>::infinity();

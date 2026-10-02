@@ -20,10 +20,10 @@ TextureAtlas::~TextureAtlas() {
     LAMBUI_LOGT(TAG, "Destroy");
 }
 
-boost::optional<TextureAtlasRegion> TextureAtlas::AddImage(int width, int height, const std::vector<uint8_t>& rgba) {
+Optional<TextureAtlasRegion> TextureAtlas::AddImage(int width, int height, const std::vector<uint8_t>& rgba) {
     LAMBUI_LOGT(TAG, "AddImage({}x{})", width, height);
     if (width <= 0 || height <= 0 || width > m_width - 2 || height > m_height - 2 ||
-        rgba.size() != static_cast<size_t>(width) * height * 4) return boost::none;
+        rgba.size() != static_cast<size_t>(width) * height * 4) return {};
     int nextX = m_nextX;
     int nextY = m_nextY;
     int rowHeight = m_rowHeight;
@@ -32,7 +32,7 @@ boost::optional<TextureAtlasRegion> TextureAtlas::AddImage(int width, int height
         nextY += rowHeight;
         rowHeight = 0;
     }
-    if (height + 2 > m_height - nextY) return boost::none;
+    if (height + 2 > m_height - nextY) return {};
     TextureAtlasRegion region;
     region.id = m_regions.size();
     region.x = nextX + 1;
@@ -71,8 +71,8 @@ bool TextureAtlas::UpdateImage(size_t id, const std::vector<uint8_t>& rgba) {
     return true;
 }
 
-boost::optional<TextureAtlasRegion> TextureAtlas::GetRegion(size_t id) const {
-    if (id >= m_regions.size()) return boost::none;
+Optional<TextureAtlasRegion> TextureAtlas::GetRegion(size_t id) const {
+    if (id >= m_regions.size()) return {};
     return m_regions[id];
 }
 

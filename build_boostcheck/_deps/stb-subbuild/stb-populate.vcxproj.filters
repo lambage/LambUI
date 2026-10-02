@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\64e239294ff3164d6612f4392e647a25\stb-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\64e239294ff3164d6612f4392e647a25\stb-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\64e239294ff3164d6612f4392e647a25\stb-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\64e239294ff3164d6612f4392e647a25\stb-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\64e239294ff3164d6612f4392e647a25\stb-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\64e239294ff3164d6612f4392e647a25\stb-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\64e239294ff3164d6612f4392e647a25\stb-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\64e239294ff3164d6612f4392e647a25\stb-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\4c2f59f38719e1d4eddcd584327afab8\stb-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\ffbe9286c92db775151dd643d142d660\stb-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\stb-subbuild\CMakeFiles\stb-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{0CA10E65-C7F7-3A07-9680-D50CFC1B0ED7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

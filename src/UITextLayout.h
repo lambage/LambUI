@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LambUI/IRenderer.h"
+#include "LambUI/UIClamp.h"
 #include <algorithm>
 #include <cmath>
 
@@ -111,8 +112,8 @@ inline View BuildView(const std::string& text, const ITextMeasurer* measurer,
     for (const auto& line : view.layout.lines) maximumWidth = std::max(maximumWidth, line.width);
     const float maximumX = wrap ? 0.0f : std::max(0.0f, maximumWidth + view.caretWidth - view.clip.width);
     const float maximumY = std::max(0.0f, static_cast<float>(view.layout.lines.size()) * view.layout.lineHeight - view.clip.height);
-    view.scrollX = boost::algorithm::clamp(scrollX, 0.0f, maximumX);
-    view.scrollY = boost::algorithm::clamp(scrollY, 0.0f, maximumY);
+    view.scrollX = Clamp(scrollX, 0.0f, maximumX);
+    view.scrollY = Clamp(scrollY, 0.0f, maximumY);
     if (revealCaret) {
         view.scrollX = std::max(view.scrollX, view.caretX + view.caretWidth - view.clip.width);
         view.scrollX = std::min(view.scrollX, view.caretX);

@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\CMakeFiles\23fb586b43afd37f2642dbda149844fd\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{79B3685B-BC82-337A-A7B9-9A1621ADD9A9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -7,6 +7,7 @@
 #include "LambUI/UITextWidget.h"
 #include "LambUI/UIButton.h"
 #include "LambUI/UIWindow.h"
+#include "LambUI/UIClamp.h"
 #include <algorithm>
 #include <cmath>
 
@@ -66,13 +67,13 @@ void UIManager::SetDisplaySize(float width, float height) {
 
 void UIManager::PlaceOverlay(UIWidget& widget, float x, float y, float requestedWidth, float requestedHeight) {
     LAMBUI_LOGT(TAG, "PlaceOverlay('{}', {}, {})", widget.GetName(), x, y);
-    const float width = boost::algorithm::clamp(requestedWidth, 0.0f, std::max(0.0f, m_displayWidth));
-    const float height = boost::algorithm::clamp(requestedHeight, 0.0f, std::max(0.0f, m_displayHeight));
+    const float width = Clamp(requestedWidth, 0.0f, std::max(0.0f, m_displayWidth));
+    const float height = Clamp(requestedHeight, 0.0f, std::max(0.0f, m_displayHeight));
     widget.SetSize(width, height);
     widget.ClearPoints();
     widget.SetPoint(AnchorPoint::TopLeft, m_overlayRoot.get(), AnchorPoint::TopLeft,
-                   boost::algorithm::clamp(x, 0.0f, std::max(0.0f, m_displayWidth - width)),
-                   boost::algorithm::clamp(y, 0.0f, std::max(0.0f, m_displayHeight - height)));
+                   Clamp(x, 0.0f, std::max(0.0f, m_displayWidth - width)),
+                   Clamp(y, 0.0f, std::max(0.0f, m_displayHeight - height)));
     widget.ResolveLayout();
 }
 

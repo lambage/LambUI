@@ -1,0 +1,348 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{4FBF6B1B-F703-3413-B5E8-D72D5EC4A3B0}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>lua_static</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build\lua-5.4.6\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">lua_static.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">lua_static</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build\lua-5.4.6\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">lua_static.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">lua_static</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build\lua-5.4.6\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">lua_static.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">lua_static</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build\lua-5.4.6\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">lua_static.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">lua_static</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.lib</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-src/lua-5.4.6/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect -BC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck --check-stamp-file C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-build/lua-5.4.6/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-4.4\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Program Files\CMake\share\cmake-4.4\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-4.4\Modules\WriteBasicConfigVersionFile.cmake;C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\LuaConfig.cmake.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build\lua-5.4.6\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-src/lua-5.4.6/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect -BC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck --check-stamp-file C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-build/lua-5.4.6/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\CMake\share\cmake-4.4\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Program Files\CMake\share\cmake-4.4\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-4.4\Modules\WriteBasicConfigVersionFile.cmake;C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\LuaConfig.cmake.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build\lua-5.4.6\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-src/lua-5.4.6/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect -BC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck --check-stamp-file C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-build/lua-5.4.6/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files\CMake\share\cmake-4.4\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Program Files\CMake\share\cmake-4.4\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-4.4\Modules\WriteBasicConfigVersionFile.cmake;C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\LuaConfig.cmake.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build\lua-5.4.6\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-src/lua-5.4.6/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect -BC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck --check-stamp-file C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-build/lua-5.4.6/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files\CMake\share\cmake-4.4\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Program Files\CMake\share\cmake-4.4\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-4.4\Modules\WriteBasicConfigVersionFile.cmake;C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\LuaConfig.cmake.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-build\lua-5.4.6\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lapi.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lcode.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lctype.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\ldebug.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\ldo.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\ldump.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lfunc.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lgc.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\llex.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lmem.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lobject.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lopcodes.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lparser.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lstate.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lstring.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\ltable.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\ltm.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lundump.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lvm.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lzio.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lauxlib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lbaselib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lcorolib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\ldblib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\liolib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lmathlib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\loadlib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\loslib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lstrlib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\ltablib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\lutf8lib.c" />
+    <ClCompile Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-src\lua-5.4.6\src\linit.c" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\ZERO_CHECK.vcxproj">
+      <Project>{4140A48F-5791-3448-8911-DFCD90B617CB}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

@@ -1,4 +1,5 @@
 #include "LambUI/UIProgressBar.h"
+#include "LambUI/UIClamp.h"
 #include <algorithm>
 #include <cmath>
 
@@ -22,7 +23,7 @@ void UIProgressBar::SetMinMaxValues(float minValue, float maxValue) {
 
 void UIProgressBar::SetValue(float value) {
     if (!std::isfinite(value)) return;
-    const float clamped = boost::algorithm::clamp(value, m_minValue, m_maxValue);
+    const float clamped = Clamp(value, m_minValue, m_maxValue);
     if (clamped == m_value) return;
     LAMBUI_LOGT(TAG, "'{}' value {} -> {}", GetName(), m_value, clamped);
     m_value = clamped;

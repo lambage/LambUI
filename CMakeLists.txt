@@ -23,6 +23,11 @@ option(LAMBUI_BUILD_EXAMPLES "Build the LambUI example backends" ${LAMBUI_IS_TOP
 option(LAMBUI_BUILD_TESTS "Build the LambUI unit test suite" ${LAMBUI_IS_TOP_LEVEL})
 option(LAMBUI_BUILD_LUA_BINDINGS "Build the Lua C API scripting companion library" OFF)
 option(LAMBUI_INSTALL "Generate install/export targets for LambUI" ${LAMBUI_IS_TOP_LEVEL})
+# Boost is a soft dependency: bring your own by turning this on (e.g. to stay
+# on C++14, or because you already depend on Boost::optional/algorithm
+# elsewhere). Off by default uses std::optional and an internal clamp helper,
+# which requires C++17.
+option(LAMBUI_USE_BOOST "Use boost::optional/boost::algorithm::clamp instead of std::optional + an internal clamp helper" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 

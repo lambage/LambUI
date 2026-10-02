@@ -1,5 +1,6 @@
 #include "LambUI/UITextWidget.h"
 #include "LambUI/IRenderer.h"
+#include "LambUI/UIClamp.h"
 #include "UITextLayout.h"
 
 namespace LambUI {
@@ -124,7 +125,7 @@ void UITextWidget::PositionCursor(float mouseX, float mouseY, bool extend) {
     const auto rect = GetContentRect();
     const auto layout = TextLayout::Build(m_text, m_textMeasurer, m_fontHandle, rect.width, m_wordWrap);
     const float row = std::floor((mouseY - rect.y) / layout.lineHeight);
-    const size_t index = static_cast<size_t>(boost::algorithm::clamp(row, 0.0f, static_cast<float>(layout.lines.size() - 1)));
+    const size_t index = static_cast<size_t>(Clamp(row, 0.0f, static_cast<float>(layout.lines.size() - 1)));
     const auto& line = layout.lines[index];
     m_cursor = TextLayout::HitPosition(m_text, line, mouseX - rect.x, m_textMeasurer, m_fontHandle);
     m_cursorAtLineEnd = m_cursor == line.end;

@@ -1,0 +1,10 @@
+^C:\USERS\KRISLAMB\APPDATA\LOCAL\TEMP\LAMBUI_INSPECT\BUILD_BOOSTCHECK\_DEPS\LUA-SUBBUILD\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild -BC:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild --check-stamp-file C:/Users/krislamb/AppData/Local/Temp/LambUI_inspect/build_boostcheck/_deps/lua-subbuild/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

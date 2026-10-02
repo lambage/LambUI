@@ -1,7 +1,7 @@
 #pragma once
 
 #include "lambui_export.h"
-#include <boost/optional.hpp>
+#include "UIOptional.h"
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -21,9 +21,9 @@ public:
     TextureAtlas(const TextureAtlas&) = delete;
     TextureAtlas& operator=(const TextureAtlas&) = delete;
 
-    boost::optional<TextureAtlasRegion> AddImage(int width, int height, const std::vector<uint8_t>& rgba);
+    Optional<TextureAtlasRegion> AddImage(int width, int height, const std::vector<uint8_t>& rgba);
     bool UpdateImage(size_t id, const std::vector<uint8_t>& rgba);
-    boost::optional<TextureAtlasRegion> GetRegion(size_t id) const;
+    Optional<TextureAtlasRegion> GetRegion(size_t id) const;
     int GetWidth() const { return m_width; }
     int GetHeight() const { return m_height; }
     const std::vector<uint8_t>& GetPixels() const { return m_pixels; }

@@ -1,4 +1,5 @@
 #include "LambUI/UIRadioButton.h"
+#include "LambUI/UIClamp.h"
 #include <algorithm>
 #include <cmath>
 
@@ -61,8 +62,8 @@ void UIRadioButton::GenerateIndicator(std::vector<UIRenderCommand>& bucket, floa
             const float deltaX = static_cast<float>(column) - 8.5f;
             const float deltaY = static_cast<float>(row) - 8.5f;
             const float radius = std::sqrt(deltaX * deltaX + deltaY * deltaY);
-            float coverage = boost::algorithm::clamp(1.5f - std::abs(radius - 7.5f), 0.0f, 1.0f);
-            if (IsChecked()) coverage = std::max(coverage, boost::algorithm::clamp(4.5f - radius, 0.0f, 1.0f));
+            float coverage = Clamp(1.5f - std::abs(radius - 7.5f), 0.0f, 1.0f);
+            if (IsChecked()) coverage = std::max(coverage, Clamp(4.5f - radius, 0.0f, 1.0f));
             if (coverage <= 0.0f) continue;
             UIRenderCommand quad;
             quad.x = x + static_cast<float>(column);

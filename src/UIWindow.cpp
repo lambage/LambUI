@@ -1,5 +1,6 @@
 #include "LambUI/UIWindow.h"
 #include "LambUI/UIScrollContainer.h"
+#include "LambUI/UIClamp.h"
 #include <algorithm>
 #include <cmath>
 
@@ -111,7 +112,7 @@ void UIWindow::SetBounds(float x, float y, float width, float height) {
     const bool stateChanged = m_state != WindowState::Normal;
     CancelDrag();
     m_state = WindowState::Normal;
-    m_normalBounds = {x, y, boost::algorithm::clamp(width, m_minWidth, m_maxWidth), boost::algorithm::clamp(height, m_minHeight, m_maxHeight)};
+    m_normalBounds = {x, y, Clamp(width, m_minWidth, m_maxWidth), Clamp(height, m_minHeight, m_maxHeight)};
     m_client->SetVisible(true);
     ApplyBounds(m_normalBounds);
     if (stateChanged) FireEvent(UIEventData{UIEventType::OnWindowStateChanged});
@@ -155,8 +156,8 @@ void UIWindow::Restore() {
     CancelDrag();
     m_state = WindowState::Normal;
     m_client->SetVisible(true);
-    m_normalBounds.width = boost::algorithm::clamp(m_normalBounds.width, m_minWidth, m_maxWidth);
-    m_normalBounds.height = boost::algorithm::clamp(m_normalBounds.height, m_minHeight, m_maxHeight);
+    m_normalBounds.width = Clamp(m_normalBounds.width, m_minWidth, m_maxWidth);
+    m_normalBounds.height = Clamp(m_normalBounds.height, m_minHeight, m_maxHeight);
     ApplyBounds(m_normalBounds);
     FireEvent(UIEventData{UIEventType::OnWindowStateChanged});
 }
@@ -222,18 +223,18 @@ void UIWindow::OnDrag(float mouseX, float mouseY) {
         bounds.x += deltaX;
         bounds.y += deltaY;
     } else {
-        if (m_resizeEdges & 1) { bounds.width = boost::algorithm::clamp(m_dragBounds.width - deltaX, m_minWidth, m_maxWidth); bounds.x += m_dragBounds.width - bounds.width; }
-        if (m_resizeEdges & 2) bounds.width = boost::algorithm::clamp(m_dragBounds.width + deltaX, m_minWidth, m_maxWidth);
-        if (m_resizeEdges & 4) { bounds.height = boost::algorithm::clamp(m_dragBounds.height - deltaY, m_minHeight, m_maxHeight); bounds.y += m_dragBounds.height - bounds.height; }
-        if (m_resizeEdges & 8) bounds.height = boost::algorithm::clamp(m_dragBounds.height + deltaY, m_minHeight, m_maxHeight);
+        if (m_resizeEdges & 1) { bounds.width = Clamp(m_dragBounds.width - deltaX, m_minWidth, m_maxWidth); bounds.x += m_dragBounds.width - bounds.width; }
+        if (m_resizeEdges & 2) bounds.width = Clamp(m_dragBounds.width + deltaX, m_minWidth, m_maxWidth);
+        if (m_resizeEdges & 4) { bounds.height = Clamp(m_dragBounds.height - deltaY, m_minHeight, m_maxHeight); bounds.y += m_dragBounds.height - bounds.height; }
+        if (m_resizeEdges & 8) bounds.height = Clamp(m_dragBounds.height + deltaY, m_minHeight, m_maxHeight);
     }
     if (GetParent()) {
         bounds.x -= GetParent()->GetComputedRect().x;
         bounds.y -= GetParent()->GetComputedRect().y;
     }
     if (!m_resizeEdges && GetParent()) {
-        bounds.x = boost::algorithm::clamp(bounds.x, 0.0f, std::max(0.0f, GetParent()->GetComputedRect().width - bounds.width));
-        bounds.y = boost::algorithm::clamp(bounds.y, 0.0f, std::max(0.0f, GetParent()->GetComputedRect().height - TitleHeight));
+        bounds.x = Clamp(bounds.x, 0.0f, std::max(0.0f, GetParent()->GetComputedRect().width - bounds.width));
+        bounds.y = Clamp(bounds.y, 0.0f, std::max(0.0f, GetParent()->GetComputedRect().height - TitleHeight));
     }
     if (m_state == WindowState::Minimized) { m_normalBounds.x = bounds.x; m_normalBounds.y = bounds.y; }
     else if (m_state == WindowState::Normal) m_normalBounds = bounds;

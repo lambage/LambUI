@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\dcd5be2e24a13e9c33060c2c8832770c\lua-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\dcd5be2e24a13e9c33060c2c8832770c\lua-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\dcd5be2e24a13e9c33060c2c8832770c\lua-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\dcd5be2e24a13e9c33060c2c8832770c\lua-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\dcd5be2e24a13e9c33060c2c8832770c\lua-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\dcd5be2e24a13e9c33060c2c8832770c\lua-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\dcd5be2e24a13e9c33060c2c8832770c\lua-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\dcd5be2e24a13e9c33060c2c8832770c\lua-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\3b244d8edfdcd87093fa7d0adcae447f\lua-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\afd27b153e0c395c32e1753edb320942\lua-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\krislamb\AppData\Local\Temp\LambUI_inspect\build_boostcheck\_deps\lua-subbuild\CMakeFiles\lua-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{249D4BEF-5277-35DE-BAB3-F135DEA4545C}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

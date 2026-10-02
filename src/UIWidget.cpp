@@ -1,4 +1,5 @@
 #include "LambUI/UIWidget.h"
+#include "LambUI/UIClamp.h"
 #include <algorithm>
 #include <cmath>
 
@@ -269,13 +270,13 @@ void UIWidget::ResolveLayout() {
                                             {previous.x, previous.y, width, height});
         const float maxWidth = std::max(m_minWidth, m_maxWidth);
         const float maxHeight = std::max(m_minHeight, m_maxHeight);
-        float resolvedWidth = boost::algorithm::clamp(m_computedRect.width, m_minWidth, maxWidth);
-        float resolvedHeight = boost::algorithm::clamp(m_computedRect.height, m_minHeight, maxHeight);
+        float resolvedWidth = Clamp(m_computedRect.width, m_minWidth, maxWidth);
+        float resolvedHeight = Clamp(m_computedRect.height, m_minHeight, maxHeight);
         if (m_aspectRatio > 0) {
             const float lower = std::max(m_minWidth, m_minHeight * m_aspectRatio);
             const float upper = std::min(maxWidth, maxHeight * m_aspectRatio);
             if (lower <= upper) {
-                resolvedWidth = boost::algorithm::clamp(std::min(resolvedWidth, resolvedHeight * m_aspectRatio), lower, upper);
+                resolvedWidth = Clamp(std::min(resolvedWidth, resolvedHeight * m_aspectRatio), lower, upper);
                 resolvedHeight = resolvedWidth / m_aspectRatio;
             }
         }

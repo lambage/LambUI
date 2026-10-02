@@ -1,4 +1,5 @@
 #include "LambUI/UISlider.h"
+#include "LambUI/UIClamp.h"
 #include <algorithm>
 
 namespace LambUI {
@@ -17,7 +18,7 @@ void UISlider::SetMinMaxValues(float minValue, float maxValue) {
 }
 
 void UISlider::SetValue(float value) {
-    const float clamped = boost::algorithm::clamp(value, m_minValue, m_maxValue);
+    const float clamped = Clamp(value, m_minValue, m_maxValue);
     if (clamped != m_value) {
         LAMBUI_LOGT(TAG, "'{}' value {} -> {}", GetName(), m_value, clamped);
         m_value = clamped;
@@ -47,7 +48,7 @@ void UISlider::OnDrag(float mouseX, float mouseY) {
     } else {
         t = rect.height > 0.0f ? (mouseY - rect.y) / rect.height : 0.0f;
     }
-    t = boost::algorithm::clamp(t, 0.0f, 1.0f);
+    t = Clamp(t, 0.0f, 1.0f);
     SetValue(m_minValue + t * range);
 }
 

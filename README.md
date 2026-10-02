@@ -672,11 +672,13 @@ target_link_libraries(my_game PRIVATE LambUI::lambui)
 Or, after `cmake --install`, via `find_package(LambUI REQUIRED)` and linking
 `LambUI::lambui`.
 
-Installed-package consumers also need fmt and Boost's optional/algorithm CMake
-packages; the fetched dependencies install alongside the core. `UIStyle::fillColor`
-and `UIWidget::GetStyle()` now use `boost::optional` rather than `std::optional`.
-Assignment, boolean checks, dereferencing, `reset()` and `value_or()` retain their
-usual usage; use `boost::none` in place of `std::nullopt`.
+Installed-package consumers also need fmt's CMake package; the fetched
+dependency installs alongside the core. Boost is a soft, bring-your-own
+dependency: by default `UIStyle::fillColor` and `UIWidget::GetStyle()` use
+`std::optional` (requires C++17). Set `LAMBUI_USE_BOOST=ON` to use
+`boost::optional`/`boost::none` instead (e.g. to stay on C++14, or because you
+already depend on Boost elsewhere) — assignment, boolean checks,
+dereferencing, `reset()` and `value_or()` behave the same either way.
 
 ## Examples
 
